@@ -2,6 +2,8 @@
 
 #include "main/MenuBar.h"
 #include "features/directory/DirectoryBrowser.h"
+#include "features/network/NetworkWindow.h"
+#include "features/network/ChatWindow.h"
 
 namespace app {
 	class GuiManager {
@@ -12,10 +14,12 @@ namespace app {
 		MenuBar menubar;
 
 		// Window Elements
-		DirectoryBrowser directorybrowser_window;
+		NetworkWindow networkwindow;
+		ChatWindow chatwindow;
 
 		std::vector<GuiWindow*> windows = {
-			&directorybrowser_window
+			&networkwindow,
+			&chatwindow
 		};
 
 	public:

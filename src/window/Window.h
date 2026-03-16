@@ -9,7 +9,7 @@ namespace app {
 	private:
 		SDL_Window* window;
 		SDL_GLContext gl_context;
-		bool should_quit;
+		bool should_quit = false;
 		int w;
 		int h;
 

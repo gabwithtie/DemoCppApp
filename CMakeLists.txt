@@ -17,24 +17,24 @@ project (${PROJECT_NAME})
 #=========================# INIT CODE #=========================#
 
 # Add primary source to this project's executable.
-add_executable (${PROJECT_NAME} "src/main.cpp" "src/gui/GuiManager.h" "src/gui/GuiManager.cpp")
+add_executable (${PROJECT_NAME} "src/main.cpp" "src/network/Network.cpp" "src/network/Network.h")
 
 #=========================# INTERNAL LIBRARIES #=========================#
 
 add_library(app_internal_libs INTERFACE)
 
-# start [CODE]
-
-# end [CODE]
-
 add_subdirectory("src/gui")
 target_link_libraries(app_internal_libs INTERFACE app_gui)
+
+add_subdirectory("src/window")
+target_link_libraries(app_internal_libs INTERFACE app_window)
 
 # For each folder/library above, make it so that they can #include anything from the root /src folder
 get_target_property(LINKED_LIBS app_internal_libs INTERFACE_LINK_LIBRARIES)
 foreach(lib ${LINKED_LIBS})
     string(APPEND LINKED_LIBS_STRING " | ${lib} ")
     target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ext")
 endforeach()
 
 # Finally, link all libraries to our main
@@ -54,3 +54,19 @@ target_link_libraries(${PROJECT_NAME} PRIVATE GLEW::GLEW)
 #GUI LIBRARY
 find_package(imgui CONFIG REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE imgui::imgui)
+#STEAMWORKS
+add_subdirectory("ext/gab-steam")
+target_link_libraries(${PROJECT_NAME} PUBLIC steam_api_imported)
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy "${STEAM_LIB_PATH}/steam_api64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>
+)
+
+#=========================# FINAL COPY COMMANDS #=========================#
+add_custom_command(
+    TARGET ${PROJECT_NAME}
+    POST_BUILD     
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/default"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+    COMMENT "Copying data files to build directory"
+)

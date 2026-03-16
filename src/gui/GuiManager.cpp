@@ -18,10 +18,22 @@ namespace app {
 
 			ImGui::DockBuilderRemoveNode(dockspace_id); // Clear out existing layout
 			ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace); // Add empty node
+			
+			ImGuiID dock_main_id = dockspace_id;
+			ImGuiID dock_id_top, dock_id_bottom;
+			ImGuiID dock_id_top_left, dock_id_top_right;
+			ImGuiID dock_id_bottom_left, dock_id_bottom_right;
+
+			dock_id_bottom = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.6f, NULL, &dock_id_top);
+			dock_id_top_right = ImGui::DockBuilderSplitNode(dock_id_top, ImGuiDir_Right, 0.7f, NULL, &dock_id_top_left);
+			dock_id_bottom_right = ImGui::DockBuilderSplitNode(dock_id_bottom, ImGuiDir_Right, 0.7f, NULL, &dock_id_bottom_left);
 
 			// start [CODE]
-			this->directorybrowser_window.Set_is_open(true);
-			ImGui::DockBuilderDockWindow(this->directorybrowser_window.GetWindowId().c_str(), dockspace_id);
+			this->networkwindow.Set_is_open(true);
+			this->chatwindow.Set_is_open(true);
+
+			ImGui::DockBuilderDockWindow(this->networkwindow.GetWindowId().c_str(), dock_id_top_right);
+			ImGui::DockBuilderDockWindow(this->chatwindow.GetWindowId().c_str(), dock_id_bottom_right);
 			// end [CODE]
 
 			ImGui::DockBuilderFinish(dockspace_id);
