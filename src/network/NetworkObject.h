@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <functional>
+#include <string>
 
 #include "NetworkRegistry.h"
 
@@ -19,7 +20,7 @@ namespace app {
     struct PendingAction {
         NetActionType type;
         int32_t index;
-        void* item;
+        uint8_t data[512];
         size_t size;
     };
 
@@ -61,20 +62,24 @@ namespace app {
         // Host calls this to execute and broadcast
         void Add(T item) {
             m_data.push_back(item);
-            m_changes.push_back({ NetActionType::Add, -1, &m_data[m_data.size() - 1], sizeof(T)});
+            PendingAction pa{ NetActionType::Add, (int32_t)m_data.size() - 1, {}, sizeof(T) };
+            memcpy(pa.data, &item, sizeof(T));
+            m_changes.push_back(pa);
         }
 
         void Remove(int32_t index) {
             if (index >= 0 && index < (int32_t)m_data.size()) {
                 m_data.erase(m_data.begin() + index);
-                m_changes.push_back({ NetActionType::Remove, index, nullptr, 0});
+                m_changes.push_back({ NetActionType::Remove, index, {}, 0 });
             }
         }
 
         void Change(int32_t index, T item) {
             if (index >= 0 && index < (int32_t)m_data.size()) {
                 m_data[index] = item;
-                m_changes.push_back({ NetActionType::Change, index, &m_data[index], sizeof(T) });
+                PendingAction pa{ NetActionType::Change, index, {}, sizeof(T) };
+                memcpy(pa.data, &item, sizeof(T));
+                m_changes.push_back(pa);
             }
         }
 
@@ -91,6 +96,11 @@ namespace app {
         void ClearChanges() override { m_changes.clear(); }
         void ApplyNetworkAction(NETWORKREQUESTPARAMS) override {
             T* item = static_cast<T*>(action_data);
+
+            if (item == nullptr)
+                std::cout << "Error translating network packet data." << std::endl;
+            else
+                std::cout << "Translating network packet data: " << *item << std::endl;
 
             switch (action_type) {
             case NetActionType::Add:    this->Add(*item);    break;

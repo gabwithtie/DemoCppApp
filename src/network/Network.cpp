@@ -47,24 +47,21 @@ namespace app {
         SteamAPI_RunCallbacks(); // This triggers the OnLobbyCreated etc. functions
         HandleIncomingMessages();
 
-        // Only the Host is responsible for broadcasting the state
-        if (this->IsHost()) {
-            BroadcastChanges();
-        }
-    }
-
-    void Network::BroadcastChanges() {
         // 1. Get all registered network objects (Table, etc.)
         auto& registryMap = NetworkRegistry::GetMap();
 
         for (auto const& [id, obj] : registryMap) {
             if (!obj->HasChanges()) continue;
 
-            auto& changes = obj->GetChanges();
+            // Only the Host is responsible for broadcasting the state
+            if (this->IsHost()) {
+                auto& changes = obj->GetChanges();
 
-            for (const auto& change : changes) {
-                SendSyncToAll(id, change.type, change.index, (void*)&change.item, change.size);
+                for (const auto& change : changes) {
+                    SendSyncToAll(id, change.type, change.index, (void*)&change.data, change.size);
+                }
             }
+
             obj->ClearChanges();
         }
     }
@@ -72,9 +69,12 @@ namespace app {
     void Network::SendSyncToAll(NETWORKREQUESTPARAMS) {
         // Prepare the buffer
         SyncPacketHeader header{ 4, object_id, (uint8_t)action_type, action_index};
-        std::vector<uint8_t> buffer(sizeof(header) + data_size);
-        memcpy(buffer.data(), &header, sizeof(header));
-        memcpy(buffer.data() + sizeof(header), action_data, data_size);
+        size_t totalSize = sizeof(SyncPacketHeader) + data_size;
+        std::vector<uint8_t> buffer(totalSize);
+        memcpy(buffer.data(), &header, sizeof(SyncPacketHeader));
+        if (action_data && data_size > 0) {
+            memcpy(buffer.data() + sizeof(SyncPacketHeader), action_data, data_size);
+        }
 
         // Send to every member in the lobby except ourselves
         int numMembers = SteamMatchmaking()->GetNumLobbyMembers(m_currentLobbyID);
@@ -89,7 +89,7 @@ namespace app {
             // Use Unreliable for high-frequency moves (Change), Reliable for Add/Remove
             auto sendType = (action_type == NetActionType::Change) ? k_nSteamNetworkingSend_Unreliable : k_nSteamNetworkingSend_Reliable;
 
-            SteamNetworkingMessages()->SendMessageToUser(identity, buffer.data(), (uint32)buffer.size(), sendType, 0);
+            SteamNetworkingMessages()->SendMessageToUser(identity, buffer.data(), totalSize, sendType, 0);
         }
     }
 
@@ -98,8 +98,8 @@ namespace app {
 
         // 1. Loopback for Host
         if (IsHost()) {
-            //this->HandleInternalRequest(NETWORKREQUESTPARAMNAMES);
-            //return;
+            this->HandleInternalRequest(NETWORKREQUESTPARAMNAMES);
+            return;
         }
 
         // 2. Prepare Buffer
@@ -155,7 +155,9 @@ namespace app {
                 auto obj = NetworkRegistry::Get(h->objectID);
                 if (obj) {
                     void* data = (rawData + sizeof(SyncPacketHeader));
-                    obj->ApplyNetworkAction(h->objectID, (NetActionType)h->actionType, h->index, data, pMsg->m_cbSize - sizeof(SyncPacketHeader));
+                    size_t payloadSize = pMsg->m_cbSize - sizeof(SyncPacketHeader);
+
+                    obj->ApplyNetworkAction(h->objectID, (NetActionType)h->actionType, h->index, data, payloadSize);
                 }
             }
 

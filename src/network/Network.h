@@ -34,7 +34,6 @@ namespace app {
 
         // Host a lobby (Public)
         void HostLobby();
-        void BroadcastChanges();
         void SendSyncToAll(NETWORKREQUESTPARAMS);
 
         // Lobby actions
