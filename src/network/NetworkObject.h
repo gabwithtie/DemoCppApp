@@ -13,7 +13,8 @@ namespace app {
     enum class NetActionType : uint8_t {
         Add = 0,
         Remove = 1,
-        Change = 2
+        Change = 2,
+        Resync = 3
     };
 
     // Represents a single change to be synchronized
@@ -44,7 +45,11 @@ namespace app {
         virtual ~INetworkObject() = default;
         virtual uint16_t GetID() const = 0;
         virtual bool HasChanges() const = 0;
+        virtual void HardReset(void* data, size_t data_size, uint32_t element_count) = 0;
         virtual void ClearChanges() = 0;
+        virtual int GetElementCount() = 0;
+        virtual int GetElementSize() = 0;
+        virtual void* GetRawDataPtr() = 0;
 
         virtual void ApplyNetworkAction(NETWORKREQUESTPARAMS) = 0;
     };
@@ -83,6 +88,16 @@ namespace app {
             }
         }
 
+        // Inside NetworkObject<T> implementation
+        void HardReset(void* data, size_t data_size, uint32_t element_count) override {
+            m_data.clear();
+            m_changes.clear();
+            if (element_count > 0) {
+                T* items = static_cast<T*>(data);
+                m_data.assign(items, items + element_count);
+            }
+        }
+
         // Client calls this to ask the host to do something
         // (Actual implementation of SendRequest depends on your Network class)
         void RequestAction(NetActionType type, int32_t index, T item = T{}) {
@@ -108,10 +123,19 @@ namespace app {
             case NetActionType::Change: this->Change(action_index, *item); break;
             }
         }
+        int GetElementCount() override {
+            return m_data.size();
+        }
+        int GetElementSize() override {
+            return sizeof(T);
+        }
+        void* GetRawDataPtr() override {
+            return m_data.data();
+        }
 
         const std::vector<T>& GetData() const { return m_data; }
 
-    private:
+    protected:
         uint16_t m_id;
         std::vector<T> m_data;
     };

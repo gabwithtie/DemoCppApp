@@ -1,5 +1,6 @@
 #include "Network.h"
 #include "Network.h"
+#include "Network.h"
 
 namespace app {
 #pragma pack(push, 1)
@@ -18,6 +19,14 @@ namespace app {
         uint8_t actionType;
         int32_t index;
         // Followed by T item data
+    };
+#pragma pack(pop)
+#pragma pack(push, 1)
+    struct ResyncPacketHeader {
+        uint8_t packetType = 5; // ID 5 = Host-to-Client Hard Resync
+        uint16_t objectID;
+        uint32_t elementCount;  // How many T items are in the payload
+        // Followed by (elementCount * sizeof(T)) bytes
     };
 #pragma pack(pop)
 
@@ -147,6 +156,27 @@ namespace app {
                 void* payload = (pMsg->m_cbSize > sizeof(RequestPacketHeader)) ? (rawData + sizeof(RequestPacketHeader)) : nullptr;
                 size_t payloadSize = pMsg->m_cbSize - sizeof(RequestPacketHeader);
 
+                if ((NetActionType)header->actionType == NetActionType::Resync) { // Our code for Resync Request
+                    // Prepare the packet
+                    auto obj = NetworkRegistry::Get(header->objectID);
+
+                    ResyncPacketHeader rheader{ 5, header->objectID, obj->GetElementCount() };
+                    size_t payloadSize = obj->GetElementCount() * obj->GetElementSize();
+
+                    std::vector<uint8_t> buffer(sizeof(rheader) + payloadSize);
+                    memcpy(buffer.data(), &rheader, sizeof(rheader));
+                    if (payloadSize > 0) {
+                        memcpy(buffer.data() + sizeof(rheader), obj->GetRawDataPtr(), payloadSize);
+                    }
+
+                    // Send ONLY to the requester (we need the requester's SteamID)
+                    // Note: You'll need to pass the pMsg->m_identityRemote from HandleIncomingMessages 
+                    // down into HandleInternalRequest to know who to reply to.
+                    SteamNetworkingMessages()->SendMessageToUser(pMsg->m_identityPeer, buffer.data(), (uint32)buffer.size(), k_nSteamNetworkingSend_Reliable, 0);
+
+                    return;
+                }
+
                 this->HandleInternalRequest(header->objectID, (NetActionType)header->actionType, header->index, payload, payloadSize);
             }
             else if (packetType == 4 && !this->IsHost()) {
@@ -158,6 +188,17 @@ namespace app {
                     size_t payloadSize = pMsg->m_cbSize - sizeof(SyncPacketHeader);
 
                     obj->ApplyNetworkAction(h->objectID, (NetActionType)h->actionType, h->index, data, payloadSize);
+                }
+            }
+            else if (packetType == 5 && !IsHost()) {
+                ResyncPacketHeader* h = (ResyncPacketHeader*)rawData;
+                auto obj = NetworkRegistry::Get(h->objectID);
+                if (obj) {
+                    void* payload = (rawData + sizeof(ResyncPacketHeader));
+                    size_t payloadSize = pMsg->m_cbSize - sizeof(ResyncPacketHeader);
+
+                    obj->HardReset(payload, payloadSize, h->elementCount);
+                    std::cout << "Object " << h->objectID << " hard resynced. Elements: " << h->elementCount << std::endl;
                 }
             }
 
@@ -223,6 +264,17 @@ namespace app {
         uint64 id = std::stoull(lobbyIDStr);
         CSteamID lobbyID(id);
         SteamMatchmaking()->JoinLobby(lobbyID);
+    }
+
+    void Network::Resync()
+    {
+        if (IsHost()) return; // Host doesn't need to resync with itself
+
+        auto& registryMap = NetworkRegistry::GetMap();
+
+        for (auto const& [id, obj] : registryMap) {
+            SendRequestPacket(id, NetActionType::Resync, -1, nullptr, 0);
+        }
     }
 
     void Network::LeaveLobby()

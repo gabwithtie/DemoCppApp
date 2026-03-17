@@ -38,6 +38,7 @@ namespace app {
 
         // Lobby actions
         void JoinLobby(std::string lobbyIDStr);
+        void Resync();
         void LeaveLobby();
         void SendChat(const std::string& message);
 

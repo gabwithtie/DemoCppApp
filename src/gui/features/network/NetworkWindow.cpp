@@ -77,6 +77,12 @@ namespace app {
                 }
                 currentState = NetworkState::Idle;
             }
+
+            if (ImGui::Button("Resync", ImVec2(ImGui::GetContentRegionAvail().x, 0))) {
+                if (currentState != NetworkState::Hosting) {
+                    net->Resync();
+                }
+            }
         }
     }
 }

@@ -3,12 +3,14 @@
 #include "gui/GuiManager.h"
 #include "gui/features/console/Console.h"
 #include "network/Network.h"
+#include "system/AppConsoleRedirector.h"
+#include "graphics/loaders/TextureLoader.h"
 
 #include "gab-tablesim/TableSim.h"
 #include "gab-tablesim/gui/TableWindow.h"
 #include "gab-tablesim/gui/HandWindow.h"
+#include "gab-tablesim/gui/TableSimMenuExtension.h"
 
-#include "system/AppConsoleRedirector.h"
 
 int main(int argc, char** argv) {
 
@@ -18,6 +20,10 @@ int main(int argc, char** argv) {
     app::Window window = app::Window("Card Game", 1280, 720);
     app::Console consolewindow = app::Console(redirector);
 
+    //GRAPHICS
+    app::graphics::TextureLoader textureloader;
+    textureloader.AssignSelfAsLoader();
+
     //NETWORK
     app::Network network;
 
@@ -26,6 +32,8 @@ int main(int argc, char** argv) {
     app::gab::HandWindow handwindow;
     app::gab::TableWindow tablewindow(tablesim.Get_table());
 
+    app::TableSimMenuExtension tablesimmenu;
+
     //GUI
     app::GuiManager::WindowAssignmentOverride windowoverride = {
         .top_left = &tablewindow,
@@ -33,6 +41,9 @@ int main(int argc, char** argv) {
         .bottom_right = &consolewindow
     };
     app::GuiManager guimanager(windowoverride);
+
+    //GAME SPECIFIC PRE-MAIN
+    app::MenuBar::AddMenu(&tablesimmenu);
 
     //MAIN
     bool done = false;

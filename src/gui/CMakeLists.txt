@@ -9,10 +9,14 @@ add_library(${CURRENT_CMAKE_LIB} STATIC
 	"main/MenuBar.cpp"
 
 	"features/directory/DirectoryBrowser.cpp"
- "features/network/NetworkWindow.h" "features/network/NetworkWindow.cpp" "features/console/Console.cpp" "features/network/ChatWindow.cpp" )
+ "features/network/NetworkWindow.h" "features/network/NetworkWindow.cpp" "features/console/Console.cpp" "features/network/ChatWindow.cpp"  "features/menubar/MenuBarExtension.h")
 
 find_package(imgui CONFIG REQUIRED)
 target_link_libraries(${CURRENT_CMAKE_LIB} PRIVATE imgui::imgui)
 
 find_package(nfd CONFIG REQUIRED)
 target_link_libraries(${CURRENT_CMAKE_LIB} PRIVATE nfd::nfd)
+
+target_compile_definitions(${CURRENT_CMAKE_LIB} PUBLIC GLM_ENABLE_EXPERIMENTAL)
+find_package(glm CONFIG REQUIRED)
+target_link_libraries(${CURRENT_CMAKE_LIB} PUBLIC glm::glm)

@@ -1,21 +1,17 @@
 #include "MenuBar.h"
+#include "MenuBar.h"
+#include "MenuBar.h"
 
 #include "system/FileDialogue.h"
 
 #include "gui/features/directory/DirectoryBrowser.h"
+#include "asset/assetloading/BatchLoader.h"
 
 namespace app {
+	MenuBar* MenuBar::instance = nullptr;
+
 	void MenuBar::DrawSelf()
 	{
-		if (ImGui::BeginMenu("File")) {
-			if (ImGui::MenuItem("Load Folder")) {
-				std::string outPath = FileDialogue::GetFilePath(FileDialogue::OPEN, "root.gbe");
-
-				if (outPath.size() != 0) {
-					DirectoryBrowser::SetProjectDirectory(outPath);
-				}
-			}
-		}
 		if (ImGui::BeginMenu("Window")) {
 			for (const auto& window : this->windows)
 			{
@@ -25,6 +21,20 @@ namespace app {
 			}
 			ImGui::EndMenu();
 		}
+
+		for (const auto& ext : extensions)
+		{
+			ext->DrawMenuBarMenu();
+		}
+	}
+
+	void MenuBar::AddMenu(MenuBarExtension* _ext)
+	{
+		instance->extensions.push_back(_ext);
+	}
+
+	MenuBar::MenuBar(std::vector<GuiWindow*>& _windows) : windows(_windows) {
+		instance = this;
 	}
 
 	bool MenuBar::ext_Begin()

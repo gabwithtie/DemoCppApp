@@ -8,19 +8,25 @@
 #include <list>
 #include <vector>
 
+#include "gui/features/menubar/MenuBarExtension.h"
+
 namespace app {
 	class GuiWindow;
 
 	class MenuBar : public GuiElement {
 	private:
+		static MenuBar* instance;
+
 		bool ext_Begin() override;
 		void ext_End() override;
 
 		std::vector<GuiWindow*>& windows;
+		std::vector<MenuBarExtension*> extensions;
 	public:
 		void DrawSelf() override;
 
-		inline MenuBar(std::vector<GuiWindow*>& _windows) : windows(_windows) {
-		}
+		static void AddMenu(MenuBarExtension*);
+
+		MenuBar(std::vector<GuiWindow*>& _windows);
 	};
 }

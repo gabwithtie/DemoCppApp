@@ -43,6 +43,12 @@ target_link_libraries(app_internal_libs INTERFACE app_network)
 add_subdirectory("src/math")
 target_link_libraries(app_internal_libs INTERFACE app_math)
 
+add_subdirectory("src/asset")
+target_link_libraries(app_internal_libs INTERFACE app_asset)
+
+add_subdirectory("src/graphics")
+target_link_libraries(app_internal_libs INTERFACE app_graphics)
+
 # For each folder/library above, make it so that they can #include anything from the root /src folder
 get_target_property(LINKED_LIBS app_internal_libs INTERFACE_LINK_LIBRARIES)
 foreach(lib ${LINKED_LIBS})
@@ -74,6 +80,9 @@ target_link_libraries(${PROJECT_NAME} PUBLIC steam_api_imported)
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${STEAM_LIB_PATH}/steam_api64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>
 )
+#IMAGE IMPORTER
+find_package(Stb REQUIRED)
+target_include_directories(${PROJECT_NAME} PUBLIC ${Stb_INCLUDE_DIR})
 
 #=========================# IMPLEMENTATION LIBRARIES #=========================#
 

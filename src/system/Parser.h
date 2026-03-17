@@ -8,8 +8,6 @@
 #include <fstream>
 #include <filesystem>
 
-#include "FileUtil.h"
-
 namespace app {
 	class Parser {
 	public:
@@ -43,9 +41,19 @@ namespace app {
 			return true;
 		}
 
+		inline static bool ValidateDirectory(std::filesystem::path directory) {
+			// Get the parent path (which is the folder/directory)
+			std::filesystem::path folderPath = directory.parent_path();
+
+			if (folderPath.empty())
+				return true;
+
+			return std::filesystem::create_directories(folderPath);
+		}
+
 		template<class TExportData>
 		static void ExportClass(const TExportData& target, std::filesystem::path asset_path) {
-			FileUtil::ValidateDirectory(asset_path);
+			ValidateDirectory(asset_path);
 			std::ofstream file(asset_path);
 
 			std::string out_string;

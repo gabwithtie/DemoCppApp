@@ -12,6 +12,7 @@ namespace app::gab {
 	void Table::CreateObject(gbe::Vector2 position)
 	{
 		this->RequestAction(app::NetActionType::Add, 0, {
+			.id = (uint16_t)this->m_data.size(),
 			.position = position
 			});
 	}
