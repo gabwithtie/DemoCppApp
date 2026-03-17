@@ -17,7 +17,15 @@ project (${PROJECT_NAME})
 #=========================# INIT CODE #=========================#
 
 # Add primary source to this project's executable.
-add_executable (${PROJECT_NAME} "src/main.cpp" "src/network/Network.cpp" "src/network/Network.h")
+add_executable (${PROJECT_NAME} "src/main.cpp")
+
+if(MSVC)
+    # Only apply the "Hide Console" flags to the Release build
+    set_target_properties(${PROJECT_NAME} PROPERTIES 
+        LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
+        LINK_FLAGS_MINSIZEREL "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
+    )
+endif()
 
 #=========================# INTERNAL LIBRARIES #=========================#
 
@@ -28,6 +36,12 @@ target_link_libraries(app_internal_libs INTERFACE app_gui)
 
 add_subdirectory("src/window")
 target_link_libraries(app_internal_libs INTERFACE app_window)
+
+add_subdirectory("src/network")
+target_link_libraries(app_internal_libs INTERFACE app_network)
+
+add_subdirectory("src/math")
+target_link_libraries(app_internal_libs INTERFACE app_math)
 
 # For each folder/library above, make it so that they can #include anything from the root /src folder
 get_target_property(LINKED_LIBS app_internal_libs INTERFACE_LINK_LIBRARIES)
@@ -60,6 +74,24 @@ target_link_libraries(${PROJECT_NAME} PUBLIC steam_api_imported)
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${STEAM_LIB_PATH}/steam_api64.dll" $<TARGET_FILE_DIR:${PROJECT_NAME}>
 )
+
+#=========================# IMPLEMENTATION LIBRARIES #=========================#
+
+add_library(app_implementation_libs INTERFACE)
+
+add_subdirectory("ext/gab-tablesim")
+target_link_libraries(app_implementation_libs INTERFACE gab_tablesim)
+
+# For each folder/library above, make it so that they can #include anything from the root /src folder
+get_target_property(LINKED_LIBS app_implementation_libs INTERFACE_LINK_LIBRARIES)
+foreach(lib ${LINKED_LIBS})
+    string(APPEND LINKED_LIBS_STRING " | ${lib} ")
+    target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ext")
+endforeach()
+
+# Finally, link all libraries to our main
+target_link_libraries(${PROJECT_NAME} PRIVATE app_implementation_libs)
 
 #=========================# FINAL COPY COMMANDS #=========================#
 add_custom_command(

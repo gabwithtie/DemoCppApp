@@ -9,7 +9,7 @@ add_library(${CURRENT_CMAKE_LIB} STATIC
 	"main/MenuBar.cpp"
 
 	"features/directory/DirectoryBrowser.cpp"
- "features/network/NetworkWindow.h" "features/network/NetworkWindow.cpp" "features/network/ChatWindow.h" "features/network/ChatWindow.cpp")
+ "features/network/NetworkWindow.h" "features/network/NetworkWindow.cpp" "features/console/Console.cpp" "features/network/ChatWindow.cpp" )
 
 find_package(imgui CONFIG REQUIRED)
 target_link_libraries(${CURRENT_CMAKE_LIB} PRIVATE imgui::imgui)

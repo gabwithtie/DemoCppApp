@@ -1,10 +1,34 @@
 #include "Network.h"
+#include "Network.h"
 
 namespace app {
+#pragma pack(push, 1)
+    struct RequestPacketHeader {
+        uint8_t packetType = 3; // ID 3 = Client-to-Host Request
+        uint16_t objectID;
+        uint8_t actionType;
+        int32_t index;
+        // Followed by raw data of size 'data_size'
+    };
+#pragma pack(pop)
+#pragma pack(push, 1)
+    struct SyncPacketHeader {
+        uint8_t packetType = 4; // ID 4 = Host-to-Client Sync
+        uint16_t objectID;
+        uint8_t actionType;
+        int32_t index;
+        // Followed by T item data
+    };
+#pragma pack(pop)
+
     Network* Network::instance = nullptr;
 
     Network::Network() {
         instance = this;
+        static app::NetworkRequestCallback_t callback_func = [this](NETWORKREQUESTPARAMS) {
+            this->SendRequestPacket(NETWORKREQUESTPARAMNAMES);
+            };
+        INetworkObject::SetCallback(callback_func);
 
         if (!SteamAPI_Init()) {
             std::cerr << "SteamAPI failed to init! Is Steam running?" << std::endl;
@@ -21,6 +45,132 @@ namespace app {
 
     void Network::Update() {
         SteamAPI_RunCallbacks(); // This triggers the OnLobbyCreated etc. functions
+        HandleIncomingMessages();
+
+        // Only the Host is responsible for broadcasting the state
+        if (this->IsHost()) {
+            BroadcastChanges();
+        }
+    }
+
+    void Network::BroadcastChanges() {
+        // 1. Get all registered network objects (Table, etc.)
+        auto& registryMap = NetworkRegistry::GetMap();
+
+        for (auto const& [id, obj] : registryMap) {
+            if (!obj->HasChanges()) continue;
+
+            auto& changes = obj->GetChanges();
+
+            for (const auto& change : changes) {
+                SendSyncToAll(id, change.type, change.index, (void*)&change.item, change.size);
+            }
+            obj->ClearChanges();
+        }
+    }
+
+    void Network::SendSyncToAll(NETWORKREQUESTPARAMS) {
+        // Prepare the buffer
+        SyncPacketHeader header{ 4, object_id, (uint8_t)action_type, action_index};
+        std::vector<uint8_t> buffer(sizeof(header) + data_size);
+        memcpy(buffer.data(), &header, sizeof(header));
+        memcpy(buffer.data() + sizeof(header), action_data, data_size);
+
+        // Send to every member in the lobby except ourselves
+        int numMembers = SteamMatchmaking()->GetNumLobbyMembers(m_currentLobbyID);
+        for (int i = 0; i < numMembers; i++) {
+            CSteamID memberID = SteamMatchmaking()->GetLobbyMemberByIndex(m_currentLobbyID, i);
+            if (memberID == SteamUser()->GetSteamID()) continue;
+
+            SteamNetworkingIdentity identity;
+            identity.Clear();
+            identity.SetSteamID64(memberID.ConvertToUint64());
+
+            // Use Unreliable for high-frequency moves (Change), Reliable for Add/Remove
+            auto sendType = (action_type == NetActionType::Change) ? k_nSteamNetworkingSend_Unreliable : k_nSteamNetworkingSend_Reliable;
+
+            SteamNetworkingMessages()->SendMessageToUser(identity, buffer.data(), (uint32)buffer.size(), sendType, 0);
+        }
+    }
+
+    void Network::SendRequestPacket(NETWORKREQUESTPARAMS) {
+        if (!m_session.active) return;
+
+        // 1. Loopback for Host
+        if (IsHost()) {
+            //this->HandleInternalRequest(NETWORKREQUESTPARAMNAMES);
+            //return;
+        }
+
+        // 2. Prepare Buffer
+        RequestPacketHeader header = { 3, object_id, (uint8_t)action_type, action_index };
+
+        size_t totalSize = sizeof(RequestPacketHeader) + data_size;
+        std::vector<uint8_t> buffer(totalSize);
+        memcpy(buffer.data(), &header, sizeof(RequestPacketHeader));
+        if (action_data && data_size > 0) {
+            memcpy(buffer.data() + sizeof(RequestPacketHeader), action_data, data_size);
+        }
+
+        // 3. Send via NetworkingMessages
+        CSteamID hostID = SteamMatchmaking()->GetLobbyOwner(m_currentLobbyID);
+
+        // Corrected Identity setup:
+        SteamNetworkingIdentity identity = {};
+        identity.Clear();
+        identity.SetSteamID64(hostID.ConvertToUint64());
+
+        auto sendresult = SteamNetworkingMessages()->SendMessageToUser(
+            identity,
+            buffer.data(),
+            (uint32)totalSize,
+            k_nSteamNetworkingSend_Reliable,
+            0 // Channel
+        );
+    }
+
+    void Network::HandleIncomingMessages() {
+        SteamNetworkingMessage_t* pMessages[16];
+        int numMessages = SteamNetworkingMessages()->ReceiveMessagesOnChannel(0, pMessages, 16);
+
+        for (int i = 0; i < numMessages; i++) {
+            SteamNetworkingMessage_t* pMsg = pMessages[i];
+            uint8_t* rawData = (uint8_t*)pMsg->m_pData;
+
+            // The first byte is our Packet Type
+            uint8_t packetType = rawData[0];
+
+            if (packetType == 3 && IsHost()) {
+                // It's a Request from a Client, and I am the Host (the Referee)
+                RequestPacketHeader* header = (RequestPacketHeader*)rawData;
+
+                void* payload = (pMsg->m_cbSize > sizeof(RequestPacketHeader)) ? (rawData + sizeof(RequestPacketHeader)) : nullptr;
+                size_t payloadSize = pMsg->m_cbSize - sizeof(RequestPacketHeader);
+
+                this->HandleInternalRequest(header->objectID, (NetActionType)header->actionType, header->index, payload, payloadSize);
+            }
+            else if (packetType == 4 && !this->IsHost()) {
+                // It's a Sync from the Host to a client
+                SyncPacketHeader* h = (SyncPacketHeader*)rawData;
+                auto obj = NetworkRegistry::Get(h->objectID);
+                if (obj) {
+                    void* data = (rawData + sizeof(SyncPacketHeader));
+                    obj->ApplyNetworkAction(h->objectID, (NetActionType)h->actionType, h->index, data, pMsg->m_cbSize - sizeof(SyncPacketHeader));
+                }
+            }
+
+            pMsg->Release();
+        }
+    }
+
+    void Network::HandleInternalRequest(NETWORKREQUESTPARAMS) {
+        if (!IsHost()) return;
+
+        // Find the Table (or any NetworkObject) by its ID
+        auto obj = NetworkRegistry::Get(object_id);
+        if (!obj) return;
+
+        obj->ApplyNetworkAction(NETWORKREQUESTPARAMNAMES);
     }
 
     void Network::HostLobby() {
@@ -57,6 +207,11 @@ namespace app {
         std::cout << "Lobby Created! ID: " << m_currentLobbyID.ConvertToUint64() << std::endl;
     }
 
+    void Network::OnSessionRequest(SteamNetworkingMessagesSessionRequest_t* pCallback) {
+        // Automatically accept all connection requests from people in our lobby
+        SteamNetworkingMessages()->AcceptSessionWithUser(pCallback->m_identityRemote);
+    }
+
     void Network::OnLobbyMemberStatusChange(LobbyChatUpdate_t* pCallback)
     {
         RefreshUserList();
@@ -85,8 +240,7 @@ namespace app {
     void Network::OnLobbyEntered(LobbyEnter_t* pCallback) {
         m_currentLobbyID = pCallback->m_ulSteamIDLobby;
         std::cout << "Joined Lobby successfully!" << std::endl;
-        m_session.isHost = (SteamMatchmaking()->GetLobbyOwner(m_session.lobbyID) == SteamUser()->GetSteamID());
-
+        
         m_session.active = true;
 
         RefreshUserList();

@@ -1,0 +1,108 @@
+#pragma once
+#include <vector>
+#include <stdint.h>
+#include <iostream>
+#include <functional>
+
+#include "NetworkRegistry.h"
+
+namespace app {
+
+    // The types of actions that can happen to a list
+    enum class NetActionType : uint8_t {
+        Add = 0,
+        Remove = 1,
+        Change = 2
+    };
+
+    // Represents a single change to be synchronized
+    struct PendingAction {
+        NetActionType type;
+        int32_t index;
+        void* item;
+        size_t size;
+    };
+
+    #define NETWORKREQUESTPARAMS uint16_t object_id, NetActionType action_type, int32_t action_index, void* action_data, size_t data_size
+    #define NETWORKREQUESTPARAMNAMES object_id, action_type, action_index, action_data, data_size
+    typedef std::function<void(NETWORKREQUESTPARAMS)> NetworkRequestCallback_t;
+
+    // Interface so we can store different templated types in one registry
+    class INetworkObject {
+    protected:
+        static NetworkRequestCallback_t callback_func;
+        std::vector<PendingAction> m_changes;
+    public:
+
+        const std::vector<PendingAction>& GetChanges() const { return m_changes; }
+
+        static inline void SetCallback(NetworkRequestCallback_t _callback_func) {
+            callback_func = _callback_func;
+        }
+
+        virtual ~INetworkObject() = default;
+        virtual uint16_t GetID() const = 0;
+        virtual bool HasChanges() const = 0;
+        virtual void ClearChanges() = 0;
+
+        virtual void ApplyNetworkAction(NETWORKREQUESTPARAMS) = 0;
+    };
+
+
+    template<typename T>
+    class NetworkObject : public INetworkObject {
+    public:
+        NetworkObject(uint16_t id) : m_id(id) {
+            NetworkRegistry::Register(this);
+        }
+
+        // --- LOGIC FUNCTIONS ---
+
+        // Host calls this to execute and broadcast
+        void Add(T item) {
+            m_data.push_back(item);
+            m_changes.push_back({ NetActionType::Add, -1, &m_data[m_data.size() - 1], sizeof(T)});
+        }
+
+        void Remove(int32_t index) {
+            if (index >= 0 && index < (int32_t)m_data.size()) {
+                m_data.erase(m_data.begin() + index);
+                m_changes.push_back({ NetActionType::Remove, index, nullptr, 0});
+            }
+        }
+
+        void Change(int32_t index, T item) {
+            if (index >= 0 && index < (int32_t)m_data.size()) {
+                m_data[index] = item;
+                m_changes.push_back({ NetActionType::Change, index, &m_data[index], sizeof(T) });
+            }
+        }
+
+        // Client calls this to ask the host to do something
+        // (Actual implementation of SendRequest depends on your Network class)
+        void RequestAction(NetActionType type, int32_t index, T item = T{}) {
+            callback_func(GetID(), type, index, (void*)&item, sizeof(T));
+        }
+
+        // --- SYNC INTERFACE ---
+
+        uint16_t GetID() const override { return m_id; }
+        bool HasChanges() const override { return !m_changes.empty(); }
+        void ClearChanges() override { m_changes.clear(); }
+        void ApplyNetworkAction(NETWORKREQUESTPARAMS) override {
+            T* item = static_cast<T*>(action_data);
+
+            switch (action_type) {
+            case NetActionType::Add:    this->Add(*item);    break;
+            case NetActionType::Remove: this->Remove(action_index); break;
+            case NetActionType::Change: this->Change(action_index, *item); break;
+            }
+        }
+
+        const std::vector<T>& GetData() const { return m_data; }
+
+    private:
+        uint16_t m_id;
+        std::vector<T> m_data;
+    };
+}
