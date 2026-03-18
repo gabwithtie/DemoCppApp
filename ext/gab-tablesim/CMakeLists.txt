@@ -6,7 +6,7 @@ add_library(${LIBRARY_NAME} STATIC
  "network/Table.cpp"
  "gui/TableWindow.cpp"
  "gui/HandWindow.cpp"
- "gui/TableSimMenuExtension.h")
+ "gui/TableSimMenuExtension.h" "network/Decks.cpp" "network/Hands.cpp" "gui/DeckWindow.cpp")
 
 #================# LIBRARY SPECIFIC DEPENDENCIES #================#
 target_compile_definitions(${LIBRARY_NAME} PUBLIC GLM_ENABLE_EXPERIMENTAL)

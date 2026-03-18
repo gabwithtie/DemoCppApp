@@ -1,6 +1,4 @@
 #include "Network.h"
-#include "Network.h"
-#include "Network.h"
 
 namespace app {
 #pragma pack(push, 1)
@@ -8,7 +6,7 @@ namespace app {
         uint8_t packetType = 3; // ID 3 = Client-to-Host Request
         uint16_t objectID;
         uint8_t actionType;
-        int32_t index;
+        uint64_t index;
         // Followed by raw data of size 'data_size'
     };
 #pragma pack(pop)
@@ -17,7 +15,7 @@ namespace app {
         uint8_t packetType = 4; // ID 4 = Host-to-Client Sync
         uint16_t objectID;
         uint8_t actionType;
-        int32_t index;
+        uint64_t index;
         // Followed by T item data
     };
 #pragma pack(pop)

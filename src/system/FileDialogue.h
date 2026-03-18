@@ -3,6 +3,7 @@
 #include <typeinfo>
 #include <unordered_map>
 #include <string>
+#include <filesystem>
 #include <functional>
 
 #include <nfd.h>
@@ -18,7 +19,7 @@ namespace app {
 			FOLDER
 		};
 
-		inline static std::string GetFilePath(OpType optype, std::string extension = "") {
+		inline static std::filesystem::path GetFilePath(OpType optype, std::string extension = "") {
 			nfdu8char_t* outPath;
 			std::string outPathStr = "";
 			
@@ -63,7 +64,7 @@ namespace app {
 				printf("Error: %s\n", NFD_GetError());
 			}
 
-			return outPathStr;
+			return std::filesystem::path(outPathStr);
 		}
 	};
 }

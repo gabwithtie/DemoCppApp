@@ -8,6 +8,7 @@
 
 #include "gab-tablesim/TableSim.h"
 #include "gab-tablesim/gui/TableWindow.h"
+#include "gab-tablesim/gui/DeckWindow.h"
 #include "gab-tablesim/gui/HandWindow.h"
 #include "gab-tablesim/gui/TableSimMenuExtension.h"
 
@@ -30,15 +31,17 @@ int main(int argc, char** argv) {
     //GAME SPECIFIC
     app::gab::TableSim tablesim;
     app::gab::HandWindow handwindow;
-    app::gab::TableWindow tablewindow(tablesim.Get_table());
+    app::gab::DeckWindow deckwindow;
+    app::gab::TableWindow tablewindow;
 
     app::TableSimMenuExtension tablesimmenu;
 
     //GUI
     app::GuiManager::WindowAssignmentOverride windowoverride = {
-        .top_left = &tablewindow,
-        .bottom_left = &handwindow,
-        .bottom_right = &consolewindow
+        .top_left = {&tablewindow},
+        .top_right = {&deckwindow},
+        .bottom_left = {&handwindow },
+        .bottom_right = {&consolewindow},
     };
     app::GuiManager guimanager(windowoverride);
 

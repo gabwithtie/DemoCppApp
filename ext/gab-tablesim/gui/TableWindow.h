@@ -6,10 +6,8 @@
 
 namespace app::gab {
 	class TableWindow : public GuiWindow {
-		Table& table;
-
 		struct RectObject {
-			uint32_t id;  // Changed to match TableObject
+			uint64_t id;  // Changed to match TableObject
 			ImVec2 pos;
 			ImVec2 size;
 			ImU32 color;
@@ -23,8 +21,9 @@ namespace app::gab {
 		int    m_draggingRectIndex = -1; // Added to track vector index
 		ImVec2 m_dragStartOffset = ImVec2(0, 0);
 
+		void DrawCardsFromDeck(int deckIndex, int count);
 	public:
-		TableWindow(Table& table);
+		TableWindow();
 		std::string GetWindowId() override { return "Table"; }
 
 		// Pulls all data from Table and overwrites local state

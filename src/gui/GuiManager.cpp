@@ -10,11 +10,12 @@ namespace app {
 
 		this->assignmentoverride = additionalwindows;
 
-		for (const auto& shown : additionalwindows.showns)
-		{
-			if (shown != nullptr)
-				this->windows.push_back(shown);
-		}
+		for (const auto& shown_list : additionalwindows.showns)
+			for (const auto& shown : shown_list)
+			{
+				if (shown != nullptr)
+					this->windows.push_back(shown);
+			}
 
 		for (const auto& hidden : additionalwindows.hiddens)
 		{
@@ -55,21 +56,25 @@ namespace app {
 			ImGui::DockBuilderDockWindow(this->networkwindow.GetWindowId().c_str(), dock_id_top_right);
 			ImGui::DockBuilderDockWindow(this->chatwindow.GetWindowId().c_str(), dock_id_bottom_right);
 
-			if (this->assignmentoverride.top_left != nullptr) {
-				this->assignmentoverride.top_left->Set_is_open(true);
-				ImGui::DockBuilderDockWindow(this->assignmentoverride.top_left->GetWindowId().c_str(), dock_id_top_left);
+			for (const auto addwindowhere : this->assignmentoverride.top_left)
+			{
+				addwindowhere->Set_is_open(true);
+				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_top_left);
 			}
-			if (this->assignmentoverride.top_right != nullptr) {
-				this->assignmentoverride.top_right->Set_is_open(true);
-				ImGui::DockBuilderDockWindow(this->assignmentoverride.top_right->GetWindowId().c_str(), dock_id_top_right);
+			for (const auto addwindowhere : this->assignmentoverride.top_right)
+			{
+				addwindowhere->Set_is_open(true);
+				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_top_right);
 			}
-			if (this->assignmentoverride.bottom_left != nullptr) {
-				this->assignmentoverride.bottom_left->Set_is_open(true);
-				ImGui::DockBuilderDockWindow(this->assignmentoverride.bottom_left->GetWindowId().c_str(), dock_id_bottom_left);
+			for (const auto addwindowhere : this->assignmentoverride.bottom_left)
+			{
+				addwindowhere->Set_is_open(true);
+				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_bottom_left);
 			}
-			if (this->assignmentoverride.bottom_right != nullptr) {
-				this->assignmentoverride.bottom_right->Set_is_open(true);
-				ImGui::DockBuilderDockWindow(this->assignmentoverride.bottom_right->GetWindowId().c_str(), dock_id_bottom_right);
+			for (const auto addwindowhere : this->assignmentoverride.bottom_right)
+			{
+				addwindowhere->Set_is_open(true);
+				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_bottom_right);
 			}
 
 			// end [CODE]

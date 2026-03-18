@@ -1,15 +1,20 @@
 #include "TableWindow.h"
 #include "imgui_internal.h" // For advanced docking/input if needed
 
+#include "gab-tablesim/network/Decks.h"
+#include "gab-tablesim/network/Hands.h"
+
+#include "graphics/loaders/TextureLoader.h"
+
 namespace app::gab {
 
-    TableWindow::TableWindow(Table& _table) : table(_table) {
+    TableWindow::TableWindow(){
         Reload();
     }
 
     void TableWindow::Reload() {
         m_rects.clear();
-        auto& networkData = table.GetData();
+        auto& networkData = Table::Get_instance()->GetData();
 
         for (const auto& obj : networkData) {
             m_rects.push_back({
@@ -23,7 +28,7 @@ namespace app::gab {
 
     void TableWindow::DrawSelf() {
         // --- 1. AUTOMATIC DATA SYNC ---
-        auto& networkData = table.GetData();
+        auto& networkData = Table::Get_instance()->GetData();
 
         // If count mismatch, force a full reload
         if (networkData.size() != m_rects.size()) {
@@ -67,6 +72,44 @@ namespace app::gab {
 
         ImVec2 mouse_world_pos = ScreenToWorld(io.MousePos);
 
+        //DRAG DROP TARGET
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_DECK_CREATE")) {
+                int deckIndex = *(const int*)payload->Data;
+
+                // 1. Get Mouse Position in Screen Space
+                ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+                // 3. Request the Host to create the object
+                TableObject newDeck;
+                newDeck.id = Table::Get_instance()->GetData().size(); // Simple ID generation for now
+                newDeck.position = gbe::Vector2(mouse_world_pos.x, mouse_world_pos.y);
+                newDeck.object_type = TableObjectType::CARDS;
+                newDeck.cardshere = Decks::Get_instance()->GetData()[deckIndex].cardnames;
+
+                Table::CreateObject(newDeck);
+
+                std::cout << "Dropped Deck " << deckIndex << " at " << mouse_world_pos.x << ", " << mouse_world_pos.y << std::endl;
+            }
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_CARD_PLAY")) {
+                const char* cardname = (const char*)payload->Data;
+
+                // 1. Get Mouse Position in Screen Space
+                ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+                // 3. Request the Host to create the object
+                TableObject newDeck;
+                newDeck.id = Table::Get_instance()->GetData().size(); // Simple ID generation for now
+                newDeck.position = gbe::Vector2(mouse_world_pos.x, mouse_world_pos.y);
+                newDeck.object_type = TableObjectType::CARDS;
+                newDeck.cardshere = { cardname };
+
+                Hands::RemoveOne(cardname);
+                Table::CreateObject(newDeck);
+            }
+            ImGui::EndDragDropTarget();
+        }
+
         // We need to store the world position where the right-click happened
         static ImVec2 context_menu_pos;
 
@@ -81,11 +124,6 @@ namespace app::gab {
         if (ImGui::BeginPopup("canvas_context")) {
             ImGui::TextDisabled("Table Actions (%.1f, %.1f)", context_menu_pos.x, context_menu_pos.y);
             ImGui::Separator();
-
-            if (ImGui::MenuItem("Create New Object")) {
-                // Call your Table logic!
-                table.CreateObject(gbe::Vector2{ context_menu_pos.x, context_menu_pos.y });
-            }
 
             if (ImGui::BeginMenu("Options")) {
                 if (ImGui::MenuItem("Reset View")) {
@@ -133,11 +171,11 @@ namespace app::gab {
             m_rects[m_draggingRectIndex].pos.x = mouse_world_pos.x - m_dragStartOffset.x;
             m_rects[m_draggingRectIndex].pos.y = mouse_world_pos.y - m_dragStartOffset.y;
 
+            TableObject olddata = Table::Get_instance()->GetData()[m_draggingRectIndex];
+
             // 2. Network Sync (Send current position to Host/Server)
-            table.RequestAction(app::NetActionType::Change, m_draggingRectIndex, {
-                .id = (uint32_t)m_draggingRectId,
-                .position = { m_rects[m_draggingRectIndex].pos.x, m_rects[m_draggingRectIndex].pos.y }
-                });
+            olddata.position = { m_rects[m_draggingRectIndex].pos.x, m_rects[m_draggingRectIndex].pos.y };
+            Table::Get_instance()->RequestAction(app::NetActionType::Change, m_draggingRectIndex, olddata);
         }
 
         if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
@@ -178,13 +216,72 @@ namespace app::gab {
             draw_list->AddLine(p1, p2, grid_color, 1.0f);
         }
 
-        for (const auto& rect : m_rects) {
+        for (size_t i = 0; i < std::min(networkData.size(), m_rects.size()); i++) {
+            const auto& tableObj = networkData[i];
+            int cardCount = (int)tableObj.cardshere.size();
+            auto& rect = m_rects[i];
+
             ImVec2 p_min = WorldToScreen(rect.pos);
             ImVec2 p_max = ImVec2(p_min.x + (rect.size.x * m_zoomLevel), p_min.y + (rect.size.y * m_zoomLevel));
+            ImVec2 size = ImVec2(p_max.x - p_min.x, p_max.y - p_min.y);
 
-            draw_list->AddRectFilled(p_min, p_max, rect.color, 5.0f);
-            if ((int)rect.id == m_draggingRectId)
-                draw_list->AddRect(p_min, p_max, IM_COL32(0, 255, 0, 255), 5.0f, 0, 2.0f);
+            // --- NEW: TEXTURE LOGIC ---
+            std::string textureToDisplay = "Standard_Back"; // Default fallback
+
+            // If the object has cards and is face up, show the top card
+            if (!tableObj.cardshere.empty()) {
+                if (tableObj.face_up) {
+                    textureToDisplay = tableObj.cardshere.back(); // Show top card
+                }
+                else {
+                    textureToDisplay = "Standard_Back"; // Or whatever your card back asset is named
+                }
+            }
+
+            auto assetData = graphics::TextureLoader::GetAssetRuntimeData(textureToDisplay);
+            ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->texturehandle : 0;
+
+            // Draw the image instead of just a filled rect
+            if (texID) {
+                draw_list->AddImage(texID, p_min, p_max);
+            }
+            else {
+                // Fallback if texture is missing
+                draw_list->AddRectFilled(p_min, p_max, rect.color, 5.0f);
+            }
+            // --------------------------
+
+            // Existing interaction logic (Invisible Button & Popup)
+            ImGui::PushID(i);
+            ImGui::SetCursorScreenPos(p_min);
+            if (ImGui::InvisibleButton("##hitbox", size)) {
+                // Handle click if needed
+            }
+
+            if (ImGui::BeginPopupContextItem()) {
+                // Add a toggle for Face Up/Down in the menu
+                if (ImGui::MenuItem(tableObj.face_up ? "Flip Face Down" : "Flip Face Up")) {
+                    TableObject updated = tableObj;
+                    updated.face_up = !updated.face_up;
+                    Table::Get_instance()->Change((int32_t)i, updated);
+                }
+
+                ImGui::Separator();
+
+                if (cardCount > 0) {
+                    if (ImGui::MenuItem("Draw 1 to Hand")) {
+                        DrawCardsFromDeck(i, 1);
+                    }
+                    if (cardCount >= 5 && ImGui::MenuItem("Draw 5 to Hand")) {
+                        DrawCardsFromDeck(i, 5);
+                    }
+                }
+                else {
+                    ImGui::TextDisabled("No cards to draw");
+                }
+
+                ImGui::EndPopup();
+            }
         }
 
         draw_list->PopClipRect();
@@ -196,5 +293,32 @@ namespace app::gab {
         ImGui::TextColored(ImVec4(1, 1, 0, 1), "Pan: %.0f, %.0f (MiddleMouseDrag)", m_scrollingOffset.x, m_scrollingOffset.y);
         ImGui::SetCursorScreenPos(ImVec2(canvas_pos.x + 10, canvas_pos.y + 50));
         ImGui::TextColored(ImVec4(1, 1, 0, 1), "Mouse WorldPos: %.1f, %.1f", mouse_world_pos.x, mouse_world_pos.y);
+    }
+
+    void TableWindow::DrawCardsFromDeck(int deckIndex, int count)
+    {
+        // 1. Get the data
+        TableObject deck = Table::Get_instance()->GetData()[deckIndex];
+        HandObject myHand = Hands::Get_instance()->GetData(); // Gets the local user's hand
+
+        // 2. Transfer the card strings
+        for (int i = 0; i < count; i++) {
+            if (deck.cardshere.empty()) break;
+
+            // Take from top of deck (end of vector)
+            std::string cardToMove = deck.cardshere.back();
+            deck.cardshere.pop_back();
+
+            // Add to hand
+            myHand.cards.push_back(cardToMove);
+        }
+
+        // 3. Sync Table (tells everyone the deck is smaller)
+        Table::DrawFrom(deckIndex, deck);
+
+        // 4. Sync Hand (tells everyone you have more cards)
+        Hands::Get_instance()->RequestUpdate(myHand);
+
+        std::cout << "Drew " << count << " cards. New hand size: " << myHand.cards.size() << std::endl;
     }
 }

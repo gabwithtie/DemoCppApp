@@ -9,17 +9,26 @@
 #define TABLE_REGISTRYID 100
 
 namespace app::gab {
-	struct TableObject {
-		uint32_t id;
-		gbe::Vector2 position;
+	enum TableObjectType {
+		CARDS
 	};
 
-	extern std::ostream& operator<<(std::ostream& os, const TableObject& s);
+    struct TableObject : NetworkData {
+        uint64_t id;
+        gbe::Vector2 position;
+        TableObjectType object_type;
+		bool face_up = false;
+        std::vector<std::string> cardshere;
+
+		std::vector<uint8_t> Serialize() override;
+        void Deserialize(const uint8_t* data, size_t size) override;
+    };
 
 	class Table : public NetworkObject<TableObject> {
 	public:
 		Table();
 
-		void CreateObject(gbe::Vector2 position);
+		static void CreateObject(TableObject& _new);
+		static void DrawFrom(uint64_t index, TableObject& _new);
 	};
 }

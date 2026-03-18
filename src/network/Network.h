@@ -57,6 +57,9 @@ namespace app {
             // Check if the current user is the owner of the lobby
             return SteamMatchmaking()->GetLobbyOwner(m_currentLobbyID) == SteamUser()->GetSteamID();
         }
+        uint64_t UserId() const {
+            return SteamUser()->GetSteamID().ConvertToUint64();
+        }
 
     private:
         static Network* instance;

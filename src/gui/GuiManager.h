@@ -9,12 +9,12 @@ namespace app {
 	class GuiManager {
 	public:
 		struct WindowAssignmentOverride {
-			GuiWindow* top_left = nullptr;
-			GuiWindow* top_right = nullptr;
-			GuiWindow* bottom_left = nullptr;
-			GuiWindow* bottom_right = nullptr;
+			std::vector<GuiWindow*> top_left;
+			std::vector<GuiWindow*> top_right;
+			std::vector<GuiWindow*> bottom_left;
+			std::vector<GuiWindow*> bottom_right;
 
-			std::vector<GuiWindow*> showns = {
+			std::vector<std::vector<GuiWindow*>> showns = {
 			top_left,
 			top_right,
 			bottom_left,

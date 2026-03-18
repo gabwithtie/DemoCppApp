@@ -22,7 +22,6 @@ void app::graphics::TextureLoader::LoadAsset_(app::Texture* target, const app::d
 
     const auto& pathstr = target->Get_asset_filepath().parent_path() / importdata.path;
 
-    GLuint my_texture = 0;
     int width = 0;
     int height = 0;
     int channels = 0;
@@ -44,7 +43,7 @@ void app::graphics::TextureLoader::LoadAsset_(app::Texture* target, const app::d
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
-    loaddata->texturehandle = my_texture;
+    loaddata->texturehandle = image_texture;
     loaddata->dimensions.x = width;
     loaddata->dimensions.y = height;
     loaddata->colorchannels = channels;

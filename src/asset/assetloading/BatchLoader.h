@@ -87,11 +87,14 @@ namespace app {
             }
         }
 
-        inline static void LoadAssetsFromDirectory(std::filesystem::path directory) {
+        ///returns: Loaded Filenames
+        inline static std::vector<std::string> LoadAssetsFromDirectory(std::filesystem::path directory) {
             std::vector<fs::path> filepaths;
             get_all_filepaths(directory, filepaths);
 
             std::vector<fs::path> filepaths_material;
+
+            std::vector<std::string> filenames;
 
             for (size_t i = 0; i < filepaths.size(); i++)
             {
@@ -100,7 +103,8 @@ namespace app {
 
                 if (is_file_extension(filename, ".img.gbe")) {
                     std::cout << "[BATCHLOADER] Loading Texture: \"" << filepath << "\"" << std::endl;
-                    new Texture(filepath);
+                    auto newtex = new Texture(filepath);
+                    filenames.push_back(newtex->Get_assetId());
                 }
                 else if (is_file_extension(filename, ".gbe")) {
                     std::cout << "[BATCHLOADER] Unknown Asset Type in: \"" << filepath << "\"" << std::endl;
@@ -122,6 +126,8 @@ namespace app {
                     }
                 }
             }
+
+            return filenames;
         }
 
         static void ReloadDirectory(std::filesystem::path directory);

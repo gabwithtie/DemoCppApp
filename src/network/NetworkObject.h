@@ -20,12 +20,17 @@ namespace app {
     // Represents a single change to be synchronized
     struct PendingAction {
         NetActionType type;
-        int32_t index;
-        uint8_t data[512];
+        uint64_t index;
+        std::vector<uint8_t> data;
         size_t size;
     };
 
-    #define NETWORKREQUESTPARAMS uint16_t object_id, NetActionType action_type, int32_t action_index, void* action_data, size_t data_size
+    struct NetworkData {
+        virtual std::vector<uint8_t> Serialize() = 0;
+        virtual void Deserialize(const uint8_t* data, size_t size) = 0;
+    };
+
+    #define NETWORKREQUESTPARAMS uint16_t object_id, NetActionType action_type, uint64_t action_index, void* action_data, size_t data_size
     #define NETWORKREQUESTPARAMNAMES object_id, action_type, action_index, action_data, data_size
     typedef std::function<void(NETWORKREQUESTPARAMS)> NetworkRequestCallback_t;
 
@@ -57,8 +62,15 @@ namespace app {
 
     template<typename T>
     class NetworkObject : public INetworkObject {
+    protected:
+        static NetworkObject* instance;
     public:
+        static NetworkObject* Get_instance() {
+            return instance;
+        }
+
         NetworkObject(uint16_t id) : m_id(id) {
+            instance = this;
             NetworkRegistry::Register(this);
         }
 
@@ -67,23 +79,41 @@ namespace app {
         // Host calls this to execute and broadcast
         void Add(T item) {
             m_data.push_back(item);
-            PendingAction pa{ NetActionType::Add, (int32_t)m_data.size() - 1, {}, sizeof(T) };
-            memcpy(pa.data, &item, sizeof(T));
+
+            PendingAction pa{ NetActionType::Add, (uint64_t)m_data.size() - 1 };
+            if constexpr (std::is_base_of<NetworkData, T>::value) {
+                pa.data = item.Serialize();
+            }
+            else {
+                pa.data.resize(sizeof(T));
+                memcpy(pa.data.data(), &item, sizeof(T));
+            }
+            pa.size = pa.data.size();
+
             m_changes.push_back(pa);
         }
 
-        void Remove(int32_t index) {
-            if (index >= 0 && index < (int32_t)m_data.size()) {
+        void Remove(uint64_t index) {
+            if (index >= 0 && index < (uint64_t)m_data.size()) {
                 m_data.erase(m_data.begin() + index);
                 m_changes.push_back({ NetActionType::Remove, index, {}, 0 });
             }
         }
 
-        void Change(int32_t index, T item) {
-            if (index >= 0 && index < (int32_t)m_data.size()) {
+        void Change(uint64_t index, T item) {
+            if (index >= 0 && index < (uint64_t)m_data.size()) {
                 m_data[index] = item;
-                PendingAction pa{ NetActionType::Change, index, {}, sizeof(T) };
-                memcpy(pa.data, &item, sizeof(T));
+
+                PendingAction pa{ NetActionType::Change, index };
+                if constexpr (std::is_base_of<NetworkData, T>::value) {
+                    pa.data = item.Serialize();
+                }
+                else {
+                    pa.data.resize(sizeof(T));
+                    memcpy(pa.data.data(), &item, sizeof(T));
+                }
+                pa.size = pa.data.size();
+
                 m_changes.push_back(pa);
             }
         }
@@ -101,7 +131,8 @@ namespace app {
         // Client calls this to ask the host to do something
         // (Actual implementation of SendRequest depends on your Network class)
         void RequestAction(NetActionType type, int32_t index, T item = T{}) {
-            callback_func(GetID(), type, index, (void*)&item, sizeof(T));
+            auto data = item.Serialize();
+            callback_func(GetID(), type, index, data.data(), data.size() * sizeof(uint8_t));
         }
 
         // --- SYNC INTERFACE ---
@@ -110,17 +141,21 @@ namespace app {
         bool HasChanges() const override { return !m_changes.empty(); }
         void ClearChanges() override { m_changes.clear(); }
         void ApplyNetworkAction(NETWORKREQUESTPARAMS) override {
-            T* item = static_cast<T*>(action_data);
+            T item = {};
 
-            if (item == nullptr)
-                std::cout << "Error translating network packet data." << std::endl;
-            else
-                std::cout << "Translating network packet data: " << *item << std::endl;
+            // 4. UPDATE: Handle incoming serialized data
+            if constexpr (std::is_base_of<NetworkData, T>::value) {
+                // Ensure your T has a way to rebuild itself from raw bytes
+                item.Deserialize(static_cast<uint8_t*>(action_data), data_size);
+            }
+            else {
+                memcpy(&item, action_data, sizeof(T));
+            }
 
             switch (action_type) {
-            case NetActionType::Add:    this->Add(*item);    break;
+            case NetActionType::Add:    this->Add(item);    break;
             case NetActionType::Remove: this->Remove(action_index); break;
-            case NetActionType::Change: this->Change(action_index, *item); break;
+            case NetActionType::Change: this->Change(action_index, item); break;
             }
         }
         int GetElementCount() override {
@@ -139,4 +174,7 @@ namespace app {
         uint16_t m_id;
         std::vector<T> m_data;
     };
+
+    template<typename T>
+    NetworkObject<T>* NetworkObject<T>::instance = nullptr;
 }

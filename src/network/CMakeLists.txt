@@ -5,7 +5,7 @@ add_library(${LIBRARY_NAME} STATIC
 	"Network.cpp"
 	"NetworkObject.h"
 	"NetworkRegistry.h"
- "NetworkObject.cpp" "NetworkRegistry.cpp")
+ "NetworkObject.cpp" "NetworkRegistry.cpp" "NetworkDictionary.h")
 
 #================# LIBRARY SPECIFIC DEPENDENCIES #================#
 
