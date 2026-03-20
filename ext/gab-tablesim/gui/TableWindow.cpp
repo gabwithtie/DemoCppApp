@@ -5,6 +5,7 @@
 #include "gab-tablesim/network/Hands.h"
 
 #include "graphics/loaders/TextureLoader.h"
+#include "TableSimMenuExtension.h"
 
 namespace app::gab {
 
@@ -216,7 +217,7 @@ namespace app::gab {
             draw_list->AddLine(p1, p2, grid_color, 1.0f);
         }
 
-        for (size_t i = 0; i < std::min(networkData.size(), m_rects.size()); i++) {
+        for (size_t i = 0; i < m_rects.size(); i++) {
             const auto& tableObj = networkData[i];
             int cardCount = (int)tableObj.cardshere.size();
             auto& rect = m_rects[i];
@@ -226,7 +227,7 @@ namespace app::gab {
             ImVec2 size = ImVec2(p_max.x - p_min.x, p_max.y - p_min.y);
 
             // --- NEW: TEXTURE LOGIC ---
-            std::string textureToDisplay = "Standard_Back"; // Default fallback
+            std::string textureToDisplay = DECKBACK_FILENAME; // Default fallback
 
             // If the object has cards and is face up, show the top card
             if (!tableObj.cardshere.empty()) {
@@ -234,7 +235,7 @@ namespace app::gab {
                     textureToDisplay = tableObj.cardshere.back(); // Show top card
                 }
                 else {
-                    textureToDisplay = "Standard_Back"; // Or whatever your card back asset is named
+                    textureToDisplay = DECKBACK_FILENAME; // Or whatever your card back asset is named
                 }
             }
 
@@ -282,6 +283,8 @@ namespace app::gab {
 
                 ImGui::EndPopup();
             }
+
+            ImGui::PopID();
         }
 
         draw_list->PopClipRect();

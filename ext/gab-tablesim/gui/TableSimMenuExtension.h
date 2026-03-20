@@ -11,6 +11,8 @@
 
 #include <filesystem>
 
+#define DECKBACK_FILENAME "Standard_Back"
+
 namespace app {
 	class TableSimMenuExtension : public MenuBarExtension {
 	public:
@@ -21,7 +23,9 @@ namespace app {
 
 					if (outPath.has_filename()) {
 						BatchLoader::GenerateMetafiles(outPath);
-						const auto loaded_files = BatchLoader::LoadAssetsFromDirectory(outPath);
+						auto loaded_files = BatchLoader::LoadAssetsFromDirectory(outPath);
+
+						loaded_files.erase(std::remove(loaded_files.begin(), loaded_files.end(), DECKBACK_FILENAME));
 
 						gab::Decks::CreateObject(outPath.filename().string(), loaded_files);
 					}
