@@ -29,12 +29,8 @@ namespace app {
 		MenuBar menubar;
 
 		// Window Elements
-		NetworkWindow networkwindow;
-		ChatWindow chatwindow;
 
 		std::vector<GuiWindow*> windows = {
-			&networkwindow,
-			&chatwindow
 		};
 		WindowAssignmentOverride assignmentoverride;
 

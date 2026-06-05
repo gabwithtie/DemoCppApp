@@ -50,12 +50,7 @@ namespace app {
 			dock_id_bottom_right = ImGui::DockBuilderSplitNode(dock_id_bottom, ImGuiDir_Right, 0.3f, NULL, &dock_id_bottom_left);
 
 			// start [CODE]
-			this->networkwindow.Set_is_open(true);
-			this->chatwindow.Set_is_open(true);
-
-			ImGui::DockBuilderDockWindow(this->networkwindow.GetWindowId().c_str(), dock_id_top_right);
-			ImGui::DockBuilderDockWindow(this->chatwindow.GetWindowId().c_str(), dock_id_bottom_right);
-
+			
 			for (const auto addwindowhere : this->assignmentoverride.top_left)
 			{
 				addwindowhere->Set_is_open(true);
