@@ -37,7 +37,7 @@ namespace app::gab {
     }
 
     void DeckWindow::DrawDeckThumbnail(const char* label, const std::string& topCardName, int index) {
-        auto assetData = graphics::TextureLoader::GetAssetRuntimeData(topCardName);
+        auto assetData = TextureLoader::GetAssetRuntimeData(topCardName);
         ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->texturehandle : 0;
 
         ImGui::BeginGroup();
@@ -73,7 +73,7 @@ namespace app::gab {
             int cardCount = (int)cards.size();
 
             // --- 1. DISPLAY THE CARD ---
-            auto assetData = graphics::TextureLoader::GetAssetRuntimeData(cards[m_carouselIdx]);
+            auto assetData = TextureLoader::GetAssetRuntimeData(cards[m_carouselIdx]);
             ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->texturehandle : 0;
 
             float availX = ImGui::GetContentRegionAvail().x;

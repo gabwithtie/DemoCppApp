@@ -239,7 +239,7 @@ namespace app::gab {
                 }
             }
 
-            auto assetData = graphics::TextureLoader::GetAssetRuntimeData(textureToDisplay);
+            auto assetData = TextureLoader::GetAssetRuntimeData(textureToDisplay);
             ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->texturehandle : 0;
 
             // Draw the image instead of just a filled rect

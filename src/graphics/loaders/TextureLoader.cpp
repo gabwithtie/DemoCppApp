@@ -6,18 +6,18 @@
 
 #include <GL/glew.h>
 
-void app::graphics::TextureLoader::ReSave(app::Texture* asset)
+void app::TextureLoader::ReSave(app::Texture* asset)
 {
 	auto data = GetAssetRuntimeData(asset->Get_assetId());
 
     if (data->data.empty()) return;
 
 	auto folderpath = asset->Get_asset_filepath().parent_path();
-	auto fullpath = folderpath / asset->Get_import_data().path;
+	auto fullpath = folderpath / asset->GetImportData().path;
 }
 
 
-void app::graphics::TextureLoader::LoadAsset_(app::Texture* target, const app::data::TextureImportData& importdata, TextureData* loaddata) {
+void app::TextureLoader::LoadAsset_(app::Texture* target, const app::TextureImportData& importdata, TextureData* loaddata) {
     if (importdata.path.size() == 0) return;
 
     const auto& pathstr = target->Get_asset_filepath().parent_path() / importdata.path;
@@ -52,12 +52,12 @@ void app::graphics::TextureLoader::LoadAsset_(app::Texture* target, const app::d
     stbi_image_free(data);
 }
 
-void app::graphics::TextureLoader::UnLoadAsset_(TextureData* data)
+void app::TextureLoader::UnLoadAsset_(TextureData* data)
 {
 
 }
 
-void app::graphics::TextureLoader::AssignSelfAsLoader()
+void app::TextureLoader::AssignSelfAsLoader()
 {
     AssetLoader::AssignSelfAsLoader();
     app::all_asset_loaders.insert_or_assign(app::TEXTURE, this);
@@ -67,6 +67,6 @@ void app::graphics::TextureLoader::AssignSelfAsLoader()
     const uint32_t height = 1;
 }
 
-app::graphics::TextureData& app::graphics::TextureLoader::GetDefaultImage() {
-    return static_cast<app::graphics::TextureLoader*>(active_instance)->defaultImage;
+app::TextureData& app::TextureLoader::GetDefaultImage() {
+    return static_cast<app::TextureLoader*>(this->activeInstance)->defaultImage;
 }

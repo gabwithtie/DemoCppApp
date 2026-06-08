@@ -6,12 +6,10 @@
 #include "system/AppConsoleRedirector.h"
 #include "graphics/loaders/TextureLoader.h"
 
-#include "gab-tablesim/TableSim.h"
-#include "gab-tablesim/gui/TableWindow.h"
-#include "gab-tablesim/gui/DeckWindow.h"
-#include "gab-tablesim/gui/HandWindow.h"
-#include "gab-tablesim/gui/TableSimMenuExtension.h"
+#include "picsel/picsel.h"
 
+#include "picsel/gui/ProjectWindow.h"
+#include "picsel/gui/ImageBrowser.h"
 
 int main(int argc, char** argv) {
 
@@ -22,20 +20,27 @@ int main(int argc, char** argv) {
     app::Console consolewindow = app::Console(redirector);
 
     //GRAPHICS
-    app::graphics::TextureLoader textureloader;
+    app::TextureLoader textureloader;
     textureloader.AssignSelfAsLoader();
 
     //SPECIFIC CONSTRUCTOR
-
+	auto projectWindow = new picsel::ProjectWindow();
+	auto imageBrowser = new picsel::ImageBrowser();
 
     //GUI
     app::GuiManager::WindowAssignmentOverride windowoverride = {
+        .top_left = {
+            imageBrowser
+		},
+        .hiddens = {
+            projectWindow
+        }
     };
     app::GuiManager guimanager(windowoverride);
 
     //GAME SPECIFIC PRE-MAIN
+    auto picsel_backend = picsel::Picsel();
 
-    
     //MAIN
     bool done = false;
     while (!done) {

@@ -16,8 +16,8 @@ namespace app {
 		std::string asset_id;
 	};
 
-	namespace internal {
-		class BaseAsset_base {
+	
+		class IBaseAsset {
 		protected:
 			AssetType assettype;
 			std::filesystem::path asset_filepath;
@@ -35,7 +35,7 @@ namespace app {
 	}
 
 	template<class TFinal, class TImportData>
-	class BaseAsset : public internal::BaseAsset_base {
+	class BaseAsset : public IBaseAsset {
 	protected:
 		TImportData import_data;
 	public:
@@ -51,16 +51,16 @@ namespace app {
 			else
 				this->base_import_data.asset_id = filename_with_ext;
 
-			AssetLoader_base<TFinal, TImportData>::LoadFileAsset(static_cast<TFinal*>(this), this->import_data);
+			IAssetLoader<TFinal, TImportData>::LoadFileAsset(static_cast<TFinal*>(this), this->import_data);
 		}
 		bool Get_destroy_queued() {
 			return this->destroy_queued;
 		}
-		TImportData& Get_import_data() {
+		TImportData& GetImportData() {
 			return this->import_data;
 		}
 		inline static TFinal* GetAssetById(std::string id) {
-			return AssetLoader_base<TFinal, TImportData>::GetAssetById(id);
+			return IAssetLoader<TFinal, TImportData>::GetAssetById(id);
 		}
 	};
 }

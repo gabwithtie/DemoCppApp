@@ -25,7 +25,7 @@ namespace app::gab {
             std::string cardName = myHand.cards[i];
 
             // 4. Fetch Texture from Asset Loader
-            auto assetData = graphics::TextureLoader::GetAssetRuntimeData(cardName);
+            auto assetData = TextureLoader::GetAssetRuntimeData(cardName);
             ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->texturehandle : 0;
 
             // 5. Draw the Card Image

@@ -77,7 +77,7 @@ namespace app {
                 const auto& filename_only = filepath.stem().string();
 
                 if (is_file_extension(filename_ext, ".png") || is_file_extension(filename_ext, ".jpg")) {
-                    auto newdata = app::data::TextureImportData{
+                    auto newdata = app::TextureImportData{
                         .path = filename_ext
                     };
                     const auto& meta_filename = filename_only + ".img.gbe";

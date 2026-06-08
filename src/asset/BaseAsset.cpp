@@ -2,7 +2,7 @@
 
 namespace app{
 	namespace internal{
-		AssetType BaseAsset_base::Get_assettype()
+		AssetType IBaseAsset::Get_assettype()
 		{
 			return this->assettype;
 		}

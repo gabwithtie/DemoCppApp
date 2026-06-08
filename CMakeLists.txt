@@ -91,6 +91,10 @@ add_library(app_implementation_libs INTERFACE)
 add_subdirectory("ext/gab-tablesim")
 target_link_libraries(app_implementation_libs INTERFACE gab_tablesim)
 
+add_subdirectory("ext/picsel")
+target_link_libraries(app_implementation_libs INTERFACE gab_picsel)
+
+
 # For each folder/library above, make it so that they can #include anything from the root /src folder
 get_target_property(LINKED_LIBS app_implementation_libs INTERFACE_LINK_LIBRARIES)
 foreach(lib ${LINKED_LIBS})

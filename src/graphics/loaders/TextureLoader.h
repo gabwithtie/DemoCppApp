@@ -7,7 +7,7 @@
 
 #include "asset/types/Texture.h"
 
-namespace app::graphics {
+namespace app {
 	struct TextureData {
 		uint32_t texturehandle;
 
@@ -19,14 +19,16 @@ namespace app::graphics {
 
 	// typedef std::function<VkDescriptorSet(gbe::vulkan::Sampler*, gbe::vulkan::ImageView*)> GbeUiCallbackFunction; // REMOVED
 
-	class TextureLoader : public app::AssetLoader<app::Texture, app::data::TextureImportData, TextureData> {
+	class TextureLoader : public app::AssetLoader<Texture, TextureImportData, TextureData> {
 	private:
 		TextureData defaultImage;
 		// static GbeUiCallbackFunction Ui_Callback; // REMOVED
 	protected:
-		void LoadAsset_(app::Texture* asset, const app::data::TextureImportData& importdata, TextureData* data) override;
+		void LoadAsset_(app::Texture* asset, const app::TextureImportData& importdata, TextureData* data) override;
 		void UnLoadAsset_(TextureData* data) override;
 	public:
+		using AssetLoader::AssetLoader;
+
 		void AssignSelfAsLoader() override;
 		static TextureData& GetDefaultImage();
 		static void ReSave(app::Texture* asset);

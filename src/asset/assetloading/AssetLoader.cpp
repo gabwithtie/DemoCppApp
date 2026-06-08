@@ -1,9 +1,9 @@
 #include "AssetLoader.h"
 #include "asset/BaseAsset.h"
 
-std::unordered_map<app::AssetType, app::AssetLoader_base_base*> app::all_asset_loaders;
+std::unordered_map<app::AssetType, app::IAssetCollection*> app::all_asset_loaders;
 
-app::internal::BaseAsset_base* app::GetBaseData(std::filesystem::path path) {
+app::IBaseAsset* app::GetBaseData(std::filesystem::path path) {
 	for (const auto& lpair : all_asset_loaders)
 	{
 		const auto& assetloader = lpair.second;
