@@ -9,10 +9,11 @@
 #include "picsel/picsel.h"
 
 #include "picsel/gui/ProjectWindow.h"
-#include "picsel/gui/ImageBrowser.h"
-#include "picsel/gui/ViewportWindow.h"
-#include "picsel/gui/AnimationWindow.h"
+#include "picsel/gui/IllustrationBrowser.h"
+#include "picsel/gui/IllustrationWindow.h"
 #include "picsel/gui/AnimationBrowser.h"
+
+#include "picsel/gui/animation/AnimationWindow.h"
 
 
 int main(int argc, char** argv) {
@@ -29,8 +30,8 @@ int main(int argc, char** argv) {
 
     //SPECIFIC CONSTRUCTOR
 	auto projectWindow = new picsel::ProjectWindow();
-	auto imageBrowser = new picsel::ImageBrowser();
-    auto viewportWindow = new picsel::ViewportWindow();
+	auto illustrationBrowser = new picsel::IllustrationBrowser();
+    auto viewportWindow = new picsel::IllustrationWindow();
     auto animationWindow = new picsel::AnimationWindow();
     auto animationBrowser = new picsel::AnimationBrowser();
 
@@ -41,7 +42,7 @@ int main(int argc, char** argv) {
             animationWindow
 		},
         .topRght = {
-            imageBrowser,
+            illustrationBrowser,
             animationBrowser
         },
         .hiddens = {

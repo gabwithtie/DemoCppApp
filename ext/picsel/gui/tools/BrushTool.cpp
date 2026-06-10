@@ -4,7 +4,6 @@
 #include <cmath>
 #include <iostream>
 
-#include "picsel/viewport/Viewport.h"
 #include "picsel/animation/AnimationManager.h"
 
 namespace picsel {
@@ -31,9 +30,7 @@ namespace picsel {
         out_py = static_cast<int>(std::floor((screen_pos.y - canvas_min.y) / zoom));
     }
 
-    void BrushTool::ProcessInteraction(Viewport* vp, ImVec2 canvas_min, ImVec2 canvas_max, float zoom) {
-        if (!vp->HasActiveCanvas()) return;
-
+    void BrushTool::ProcessInteraction(std::string asset_id, ImVec2 canvas_min, ImVec2 canvas_max, float zoom) {
         app::InputMap& input = app::InputMap::Get();
         ImVec2 mouse_pos     = ImGui::GetMousePos(); // positional data, not a binding
 
@@ -44,8 +41,6 @@ namespace picsel {
         // Only paint if the primary tool button is held down
         if (input.IsHeld(app::InputAction::Tool_PrimaryUse)) {
 
-            // Get the asset data (Assuming this returns a reference to the mutable CPU buffer)
-            std::string asset_id = vp->GetActiveCanvas();
             auto tex_data = app::TextureLoader::GetAssetData(asset_id);
 
             int width = tex_data->dimensions.x;
@@ -90,8 +85,5 @@ namespace picsel {
                 app::TextureLoader::UpdateGPU(asset_id);
             }
         }
-    }
-    void BrushTool::ProcessInteractionAnim(AnimationManager* vp, ImVec2 canvas_min, ImVec2 canvas_max, float zoom)
-    {
     }
 }

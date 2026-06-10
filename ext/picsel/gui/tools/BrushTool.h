@@ -9,8 +9,7 @@ namespace picsel {
         std::string GetName() const override { return "Brush / Eraser"; }
 
         void DrawSettings() override;
-        void ProcessInteraction(Viewport* vp, ImVec2 canvas_min, ImVec2 canvas_max, float zoom) override;
-        void ProcessInteractionAnim(AnimationManager* vp, ImVec2 canvas_min, ImVec2 canvas_max, float zoom) override;
+        void ProcessInteraction(std::string asset_id, ImVec2 canvas_min, ImVec2 canvas_max, float zoom) override;
 
     private:
         // Tool State

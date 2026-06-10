@@ -2,7 +2,9 @@
 #include <fstream>
 #include <iostream>
 
-#include "ImageManager.h"
+#include "asset/assetloading/BatchLoader.h"
+
+#include "picsel/illustration/IllustrationManager.h"
 
 namespace picsel {
 
@@ -54,7 +56,13 @@ namespace picsel {
         m_active_project = std::move(loaded_data);
         m_active_project_path = project_file_path;
 
-        ImageManager::Get()->SyncWithGPU(); //load images
+        auto project_root = m_active_project_path.parent_path();
+        std::filesystem::path illustrations_dir = project_root / "illustrations";
+        std::filesystem::create_directories(illustrations_dir);
+
+        // Other directory initializers
+        app::BatchLoader::ReloadDirectory(project_root);
+        IllustrationManager::initialize(illustrations_dir);
 
         return true;
     }
@@ -84,9 +92,8 @@ namespace picsel {
     bool ProjectManager::CreateNewProject(const std::filesystem::path& root_dir, const std::string& project_name, int width, int height) {
         try {
             std::filesystem::path project_root = root_dir / project_name;
-            std::filesystem::path frames_dir = project_root / "frames";
-
-            if (!std::filesystem::create_directories(frames_dir) && !std::filesystem::exists(project_root)) {
+            
+            if (!std::filesystem::exists(project_root)) {
                 std::cerr << "[Picsel] System execution mapping error: Directory could not be mounted.\n";
                 return false;
             }

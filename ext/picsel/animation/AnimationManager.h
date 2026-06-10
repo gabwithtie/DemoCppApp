@@ -7,6 +7,9 @@
 namespace picsel {
     class AnimationManager {
     public:
+        inline AnimationManager() {}
+        inline ~AnimationManager() { SaveActiveClip(); }
+
         // --- Active State ---
         static std::shared_ptr<AnimationClip> GetActiveClip();
         static void SetActiveClip(std::shared_ptr<AnimationClip> clip);

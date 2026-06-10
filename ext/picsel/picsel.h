@@ -1,13 +1,13 @@
-#include "project/ImageManager.h"
+#include "illustration/IllustrationManager.h"
 #include "project/ProjectManager.h"
 
-#include "viewport/Viewport.h"
+#include "animation/AnimationManager.h"
 
 namespace picsel {
 	class Picsel {
-		ImageManager image_manager;
-		ProjectManager project_manager;
+		IllustrationManager illusManager;
+		ProjectManager projectManager;
 
-		Viewport viewport;
+		AnimationManager animationManager;
 	};
 }

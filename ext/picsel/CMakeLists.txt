@@ -3,13 +3,19 @@ set(LIBRARY_NAME "gab_picsel")
 
 add_library(${LIBRARY_NAME} STATIC
 	"gui/ProjectWindow.cpp"
-	"gui/ImageBrowser.cpp"
- "project/ImageManager.cpp"
+	
+ 
  "project/ProjectManager.cpp"
  "animation/AnimationClip.cpp"
- "gui/AnimationWindow.cpp"
 
-  "viewport/Viewport.h" "viewport/Viewport.cpp" "gui/ViewportWindow.h" "gui/ViewportWindow.cpp" "gui/tools/ViewportTool.h" "gui/tools/BrushTool.h" "gui/tools/BrushTool.cpp" "animation/AnimationManager.h" "animation/AnimationManager.cpp" "gui/AnimationBrowser.h" "gui/AnimationBrowser.cpp" "gui/animation/AnimationWindow.h")
+  "gui/IllustrationWindow.cpp"
+  
+  "gui/tools/BrushTool.cpp" 
+  "animation/AnimationManager.cpp" 
+  "gui/AnimationBrowser.cpp"
+  "gui/animation/AnimationWindow.cpp"
+  "illustration/IllustrationManager.cpp"
+  "gui/IllustrationBrowser.cpp")
 
 #================# LIBRARY SPECIFIC DEPENDENCIES #================#
 
