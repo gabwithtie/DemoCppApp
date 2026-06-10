@@ -37,8 +37,8 @@ namespace app::gab {
     }
 
     void DeckWindow::DrawDeckThumbnail(const char* label, const std::string& topCardName, int index) {
-        auto assetData = TextureLoader::GetAssetRuntimeData(topCardName);
-        ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->texturehandle : 0;
+        auto assetData = TextureLoader::GetAssetData(topCardName);
+        ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->textureHandle : 0;
 
         ImGui::BeginGroup();
         if (ImGui::ImageButton("##deck_thumb", texID, ImVec2(100, 140))) {
@@ -73,8 +73,8 @@ namespace app::gab {
             int cardCount = (int)cards.size();
 
             // --- 1. DISPLAY THE CARD ---
-            auto assetData = TextureLoader::GetAssetRuntimeData(cards[m_carouselIdx]);
-            ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->texturehandle : 0;
+            auto assetData = TextureLoader::GetAssetData(cards[m_carouselIdx]);
+            ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->textureHandle : 0;
 
             float availX = ImGui::GetContentRegionAvail().x;
             ImGui::SetCursorPosX((availX - 250) * 0.5f);

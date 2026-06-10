@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/features/menubar/MenuBarExtension.h"
+#include "gui/features/menuBar/MenuBarExtension.h"
 #include <imgui.h>
 #include <string>
 

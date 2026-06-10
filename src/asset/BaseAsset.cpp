@@ -1,10 +1,8 @@
 #include "BaseAsset.h"
 
-namespace app{
-	namespace internal{
-		AssetType IBaseAsset::Get_assettype()
-		{
-			return this->assettype;
-		}
+namespace app {
+	AssetType IBaseAsset::GetAssetType()
+	{
+		return this->assetType;
 	}
 }

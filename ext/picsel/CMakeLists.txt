@@ -6,7 +6,7 @@ add_library(${LIBRARY_NAME} STATIC
 	"gui/ImageBrowser.cpp"
  "project/ImageManager.cpp"
  "project/ProjectManager.cpp"
- )
+  "viewport/Viewport.h" "viewport/Viewport.cpp" "gui/ViewportWindow.h" "gui/ViewportWindow.cpp")
 
 #================# LIBRARY SPECIFIC DEPENDENCIES #================#
 

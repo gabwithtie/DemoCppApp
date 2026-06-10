@@ -104,7 +104,7 @@ namespace app {
                 if (is_file_extension(filename, ".img.gbe")) {
                     std::cout << "[BATCHLOADER] Loading Texture: \"" << filepath << "\"" << std::endl;
                     auto newtex = new Texture(filepath);
-                    filenames.push_back(newtex->Get_assetId());
+                    filenames.push_back(newtex->GetAssetId());
                 }
                 else if (is_file_extension(filename, ".gbe")) {
                     std::cout << "[BATCHLOADER] Unknown Asset Type in: \"" << filepath << "\"" << std::endl;

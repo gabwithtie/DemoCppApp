@@ -37,13 +37,13 @@ namespace app {
 		static IAssetLoader* activeBaseInstance;
 		std::unordered_map<std::string, TAsset*> fileassetDictionary;
 
-		std::function<bool(TAsset* asset, const TAssetImportData& import_data)> load_func;
+		std::function<bool(TAsset* asset, const TAssetImportData& importData)> load_func;
 	public:
-		static bool LoadFileAsset(TAsset* asset, const TAssetImportData& import_data) {
+		static bool LoadFileAsset(TAsset* asset, const TAssetImportData& importData) {
 			if (activeBaseInstance == nullptr)
 				std::cout << "asset loader for this particular type is not assigned!" << std::endl;
 
-			return activeBaseInstance->load_func(asset, import_data);
+			return activeBaseInstance->load_func(asset, importData);
 		}
 		static TAsset* GetAssetById(std::string asset_id) {
 			auto it = activeBaseInstance->fileassetDictionary.find(asset_id);
@@ -69,7 +69,7 @@ namespace app {
 				if (baseasset == nullptr)
 					continue;
 
-				if (baseasset->Get_asset_filepath() == asset_path)
+				if (baseasset->Get_assetFilepath() == asset_path)
 					return pair.second;
 			}
 
@@ -108,7 +108,7 @@ namespace app {
 		static AssetLoader* activeInstance;
 
 		std::unordered_map<std::string, TAssetLoadData> loaded_assets;
-		virtual void LoadAsset_(TAsset* asset, const TAssetImportData& import_data, TAssetLoadData* load_data) = 0;
+		virtual void LoadAsset_(TAsset* asset, const TAssetImportData& importData, TAssetLoadData* load_data) = 0;
 		virtual void UnLoadAsset_(TAssetLoadData* load_data) = 0;
 
 	public:
@@ -147,18 +147,18 @@ namespace app {
 			this->activeBaseInstance = this;
 			this->activeInstance = this;
 
-			this->load_func = [](TAsset* asset, const TAssetImportData& import_data) {
+			this->load_func = [](TAsset* asset, const TAssetImportData& importData) {
 				TAssetLoadData load_data = {};
-				activeInstance->loaded_assets.insert_or_assign(asset->Get_assetId(), load_data);
-				activeInstance->LoadAsset_(asset, import_data, &activeInstance->loaded_assets[asset->Get_assetId()]);
+				activeInstance->loaded_assets.insert_or_assign(asset->GetAssetId(), load_data);
+				activeInstance->LoadAsset_(asset, importData, &activeInstance->loaded_assets[asset->GetAssetId()]);
 
-				auto it = activeInstance->fileassetDictionary.find(asset->Get_assetId());
+				auto it = activeInstance->fileassetDictionary.find(asset->GetAssetId());
 				if (it != activeInstance->fileassetDictionary.end()) {
 					//implement deloading logic for old asset
 				}
 
 				//Always override
-				activeInstance->fileassetDictionary.insert_or_assign(asset->Get_assetId(), asset);
+				activeInstance->fileassetDictionary.insert_or_assign(asset->GetAssetId(), asset);
 
 				return true;
 				};
@@ -172,7 +172,7 @@ namespace app {
 			activeInstance->loaded_assets.insert_or_assign(id, assetdata);
 		}
 
-		static TAssetLoadData* GetAssetRuntimeData(std::string assetid) {
+		static TAssetLoadData* GetAssetData(std::string assetid) {
 			auto it = activeInstance->loaded_assets.find(assetid);
 			if (it != activeInstance->loaded_assets.end()) {
 				return &it->second;
@@ -185,7 +185,7 @@ namespace app {
 
 		static TAsset* GetAssetByPath(std::string asset_path) {
 			for (const auto& pair : activeInstance->fileassetDictionary) {
-				if (pair.second->Get_asset_filepath() == asset_path) {
+				if (pair.second->Get_assetFilepath() == asset_path) {
 					return pair.second;
 				}
 			}

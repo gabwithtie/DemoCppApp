@@ -9,7 +9,7 @@ namespace app {
 	private:
 		SDL_Window* window;
 		SDL_GLContext gl_context;
-		bool should_quit = false;
+		bool shouldQuit = false;
 		int w;
 		int h;
 
@@ -17,8 +17,8 @@ namespace app {
 		Window(const char* name, int w, int h);
 		void InitFrame();
 		void CommitFrame();
-		inline bool Get_should_quit() { // Getters and setters are usually "inline" and have their definition directly in the header
-			return this->should_quit;
+		inline bool GetShouldQuit() { // Getters and setters are usually "inline" and have their definition directly in the header
+			return this->shouldQuit;
 		}
 		~Window(); // Destructor automatically called when local variable (i.e., non-pointer variable goes out of scope)
 	};

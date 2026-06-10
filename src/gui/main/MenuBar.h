@@ -8,7 +8,7 @@
 #include <list>
 #include <vector>
 
-#include "gui/features/menubar/MenuBarExtension.h"
+#include "gui/features/menuBar/MenuBarExtension.h"
 
 namespace app {
 	class GuiWindow;

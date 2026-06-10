@@ -239,8 +239,8 @@ namespace app::gab {
                 }
             }
 
-            auto assetData = TextureLoader::GetAssetRuntimeData(textureToDisplay);
-            ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->texturehandle : 0;
+            auto assetData = TextureLoader::GetAssetData(textureToDisplay);
+            ImTextureID texID = (assetData) ? (ImTextureID)(uintptr_t)assetData->textureHandle : 0;
 
             // Draw the image instead of just a filled rect
             if (texID) {

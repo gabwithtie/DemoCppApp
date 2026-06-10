@@ -10,13 +10,14 @@
 
 #include "picsel/gui/ProjectWindow.h"
 #include "picsel/gui/ImageBrowser.h"
+#include "picsel/gui/ViewportWindow.h"
 
 int main(int argc, char** argv) {
 
     AppConsoleRedirector redirector;
 
     // Initialize Window + GUI
-    app::Window window = app::Window("Card Game", 1280, 720);
+    app::Window window = app::Window("Picsel", 1280, 720);
     app::Console consolewindow = app::Console(redirector);
 
     //GRAPHICS
@@ -26,12 +27,16 @@ int main(int argc, char** argv) {
     //SPECIFIC CONSTRUCTOR
 	auto projectWindow = new picsel::ProjectWindow();
 	auto imageBrowser = new picsel::ImageBrowser();
+    auto viewportWindow = new picsel::ViewportWindow();
 
     //GUI
     app::GuiManager::WindowAssignmentOverride windowoverride = {
-        .top_left = {
-            imageBrowser
+        .topLeft = {
+            viewportWindow
 		},
+        .topRght = {
+            imageBrowser
+        },
         .hiddens = {
             projectWindow
         }
@@ -46,7 +51,7 @@ int main(int argc, char** argv) {
     while (!done) {
         window.InitFrame();
 
-        if (window.Get_should_quit())
+        if (window.GetShouldQuit())
             break;
 
         guimanager.Draw();

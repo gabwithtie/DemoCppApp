@@ -3,7 +3,7 @@
 namespace app {
 	bool GuiWindow::ext_Begin() {
 
-		this->push_styles();
+		this->pushStyles();
 		bool began = ImGui::Begin(this->GetWindowId().c_str(), &is_open);
 
 		const float label_width_base = ImGui::GetFontSize() * 12;               // Some amount of width for label, based on font size.
@@ -41,6 +41,6 @@ namespace app {
 	void GuiWindow::ext_End() {
 		ImGui::PopItemWidth();
 		ImGui::End();
-		this->pop_styles();
+		this->popStyles();
 	}
 }

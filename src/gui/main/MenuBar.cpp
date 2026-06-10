@@ -16,7 +16,7 @@ namespace app {
 			for (const auto& window : this->windows)
 			{
 				if (ImGui::MenuItem(window->GetWindowId().c_str())) {
-					window->Set_is_open(true);
+					window->SetOpen(true);
 				}
 			}
 			ImGui::EndMenu();

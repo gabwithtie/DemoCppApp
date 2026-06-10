@@ -8,11 +8,11 @@
 
 void app::TextureLoader::ReSave(app::Texture* asset)
 {
-	auto data = GetAssetRuntimeData(asset->Get_assetId());
+	auto data = GetAssetData(asset->GetAssetId());
 
     if (data->data.empty()) return;
 
-	auto folderpath = asset->Get_asset_filepath().parent_path();
+	auto folderpath = asset->Get_assetFilepath().parent_path();
 	auto fullpath = folderpath / asset->GetImportData().path;
 }
 
@@ -20,7 +20,7 @@ void app::TextureLoader::ReSave(app::Texture* asset)
 void app::TextureLoader::LoadAsset_(app::Texture* target, const app::TextureImportData& importdata, TextureData* loaddata) {
     if (importdata.path.size() == 0) return;
 
-    const auto& pathstr = target->Get_asset_filepath().parent_path() / importdata.path;
+    const auto& pathstr = target->Get_assetFilepath().parent_path() / importdata.path;
 
     int width = 0;
     int height = 0;
@@ -43,11 +43,10 @@ void app::TextureLoader::LoadAsset_(app::Texture* target, const app::TextureImpo
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
-    loaddata->texturehandle = image_texture;
+    loaddata->textureHandle = image_texture;
     loaddata->dimensions.x = width;
     loaddata->dimensions.y = height;
-    loaddata->colorchannels = channels;
-    //std::memcpy(&loaddata->data, data, width * height * channels * sizeof(unsigned char));
+    loaddata->colorChannels = channels;
 
     stbi_image_free(data);
 }
@@ -68,5 +67,5 @@ void app::TextureLoader::AssignSelfAsLoader()
 }
 
 app::TextureData& app::TextureLoader::GetDefaultImage() {
-    return static_cast<app::TextureLoader*>(this->activeInstance)->defaultImage;
+    return static_cast<app::TextureLoader*>(activeInstance)->defaultImage;
 }

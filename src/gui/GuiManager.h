@@ -9,30 +9,30 @@ namespace app {
 	class GuiManager {
 	public:
 		struct WindowAssignmentOverride {
-			std::vector<GuiWindow*> top_left;
-			std::vector<GuiWindow*> top_right;
-			std::vector<GuiWindow*> bottom_left;
-			std::vector<GuiWindow*> bottom_right;
+			std::vector<GuiWindow*> topLeft;
+			std::vector<GuiWindow*> topRght;
+			std::vector<GuiWindow*> bottomLeft;
+			std::vector<GuiWindow*> bottomRight;
 
 			std::vector<std::vector<GuiWindow*>> showns = {
-			top_left,
-			top_right,
-			bottom_left,
-			bottom_right
+			topLeft,
+			topRght,
+			bottomLeft,
+			bottomRight
 			};
 			std::vector<GuiWindow*> hiddens;
 		};
 	private:
-		bool gui_startframe_init = false;
+		bool guiStartframeInit = false;
 		
 		// Main Elements
-		MenuBar menubar;
+		MenuBar menuBar;
 
 		// Window Elements
 
 		std::vector<GuiWindow*> windows = {
 		};
-		WindowAssignmentOverride assignmentoverride;
+		WindowAssignmentOverride assignmentOverride;
 
 	public:
 		GuiManager(WindowAssignmentOverride = {});

@@ -1,5 +1,6 @@
 #include "ImageBrowser.h"
 #include "picsel/project/ImageManager.h"
+#include "picsel/viewport/Viewport.h"
 #include "imgui.h"
 #include <sstream>
 
@@ -174,6 +175,12 @@ namespace picsel {
             ImGui::BeginGroup();
 
             ImGui::Button("[ PNG ]", ImVec2(m_thumbnail_size, m_thumbnail_size));
+
+            if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                if (picsel::Viewport::Get()) {
+                    picsel::Viewport::Get()->SetActiveCanvas(file.actual_png_name);
+                }
+            }
 
             if (ImGui::BeginDragDropSource()) {
                 std::string file_payload = current_path + "|" + std::to_string(i);

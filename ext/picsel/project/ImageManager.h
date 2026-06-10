@@ -5,6 +5,8 @@
 #include <vector>
 #include <stdexcept>
 
+#define DEFAULT_IMAGE_DIMS 32
+
 namespace picsel {
 
     class ImageManager {

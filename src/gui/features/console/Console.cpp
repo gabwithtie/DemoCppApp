@@ -8,7 +8,7 @@ namespace app {
 
 	void Console::DrawSelf()
 	{
-        for (const auto& line : redirector.log_lines) {
+        for (const auto& line : redirector.logLines) {
             ImGui::TextUnformatted(line.c_str());
         }
 

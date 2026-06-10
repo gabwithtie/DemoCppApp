@@ -18,9 +18,6 @@ namespace picsel {
 
     struct ProjectData {
         std::string project_name = "Untitled Pixel Project";
-        int canvas_width = 32;
-        int canvas_height = 32;
-        int target_fps = 12;
 
         // Root entry of our implicit virtual structure layout tree
         VirtualFolder virtual_root{ "Root", {}, {} };

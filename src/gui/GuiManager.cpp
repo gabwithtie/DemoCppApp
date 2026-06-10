@@ -4,11 +4,11 @@
 #include <imgui_internal.h>
 
 namespace app {
-	GuiManager::GuiManager(WindowAssignmentOverride additionalwindows) : menubar (this->windows)
+	GuiManager::GuiManager(WindowAssignmentOverride additionalwindows) : menuBar (this->windows)
 	{
 		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-		this->assignmentoverride = additionalwindows;
+		this->assignmentOverride = additionalwindows;
 
 		for (const auto& shown_list : additionalwindows.showns)
 			for (const auto& shown : shown_list)
@@ -28,8 +28,8 @@ namespace app {
 		ImGuiID dockspace_id = ImGui::GetID("maindockspace");
 		ImGui::DockSpaceOverViewport(dockspace_id);
 
-		if (!gui_startframe_init) {
-			gui_startframe_init = true;
+		if (!guiStartframeInit) {
+			guiStartframeInit = true;
 
 			ImGuiViewport* viewport = ImGui::GetMainViewport();
 			ImVec2 work_size = viewport->WorkSize;
@@ -42,34 +42,34 @@ namespace app {
 
 			ImGuiID dock_main_id = dockspace_id;
 			ImGuiID dock_id_top, dock_id_bottom;
-			ImGuiID dock_id_top_left, dock_id_top_right;
-			ImGuiID dock_id_bottom_left, dock_id_bottom_right;
+			ImGuiID dock_id_topLeft, dock_id_topRght;
+			ImGuiID dock_id_bottomLeft, dock_id_bottomRight;
 
 			dock_id_bottom = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.4f, NULL, &dock_id_top);
-			dock_id_top_right = ImGui::DockBuilderSplitNode(dock_id_top, ImGuiDir_Right, 0.3f, NULL, &dock_id_top_left);
-			dock_id_bottom_right = ImGui::DockBuilderSplitNode(dock_id_bottom, ImGuiDir_Right, 0.3f, NULL, &dock_id_bottom_left);
+			dock_id_topRght = ImGui::DockBuilderSplitNode(dock_id_top, ImGuiDir_Right, 0.3f, NULL, &dock_id_topLeft);
+			dock_id_bottomRight = ImGui::DockBuilderSplitNode(dock_id_bottom, ImGuiDir_Right, 0.3f, NULL, &dock_id_bottomLeft);
 
 			// start [CODE]
 			
-			for (const auto addwindowhere : this->assignmentoverride.top_left)
+			for (const auto addwindowhere : this->assignmentOverride.topLeft)
 			{
-				addwindowhere->Set_is_open(true);
-				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_top_left);
+				addwindowhere->SetOpen(true);
+				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_topLeft);
 			}
-			for (const auto addwindowhere : this->assignmentoverride.top_right)
+			for (const auto addwindowhere : this->assignmentOverride.topRght)
 			{
-				addwindowhere->Set_is_open(true);
-				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_top_right);
+				addwindowhere->SetOpen(true);
+				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_topRght);
 			}
-			for (const auto addwindowhere : this->assignmentoverride.bottom_left)
+			for (const auto addwindowhere : this->assignmentOverride.bottomLeft)
 			{
-				addwindowhere->Set_is_open(true);
-				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_bottom_left);
+				addwindowhere->SetOpen(true);
+				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_bottomLeft);
 			}
-			for (const auto addwindowhere : this->assignmentoverride.bottom_right)
+			for (const auto addwindowhere : this->assignmentOverride.bottomRight)
 			{
-				addwindowhere->Set_is_open(true);
-				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_bottom_right);
+				addwindowhere->SetOpen(true);
+				ImGui::DockBuilderDockWindow(addwindowhere->GetWindowId().c_str(), dock_id_bottomRight);
 			}
 
 			// end [CODE]
@@ -77,11 +77,11 @@ namespace app {
 			ImGui::DockBuilderFinish(dockspace_id);
 		}
 
-		this->menubar.Draw();
+		this->menuBar.Draw();
 
 		for (const auto& window : this->windows)
 		{
-			if (window->Get_is_open())
+			if (window->IsOpen())
 				window->Draw();
 		}
 	}

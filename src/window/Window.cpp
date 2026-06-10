@@ -27,7 +27,7 @@ namespace app {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL2_ProcessEvent(&event);
-            if (event.type == SDL_QUIT) this->should_quit = true;
+            if (event.type == SDL_QUIT) this->shouldQuit = true;
         }
 
         // Start ImGui frame

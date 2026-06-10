@@ -27,7 +27,7 @@ app::AssetType app::GetAssetType(std::filesystem::path path) {
 		if (assetdata == nullptr)
 			continue;
 
-		return assetdata->Get_assettype();
+		return assetdata->GetAssetType();
 	}
 
 	return AssetType::NONE;
@@ -42,7 +42,7 @@ std::string app::GetAssetId(std::filesystem::path path) {
 		if (assetdata == nullptr)
 			continue;
 
-		return assetdata->Get_assetId();
+		return assetdata->GetAssetId();
 	}
 
 	return "";

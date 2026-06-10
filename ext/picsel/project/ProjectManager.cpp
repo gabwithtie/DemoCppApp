@@ -2,6 +2,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "ImageManager.h"
+
 namespace picsel {
 
     ProjectManager* ProjectManager::s_instance = nullptr;
@@ -51,6 +53,9 @@ namespace picsel {
 
         m_active_project = std::move(loaded_data);
         m_active_project_path = project_file_path;
+
+        ImageManager::Get()->SyncWithGPU(); //load images
+
         return true;
     }
 
@@ -88,8 +93,6 @@ namespace picsel {
 
             ProjectData new_project;
             new_project.project_name = project_name;
-            new_project.canvas_width = width;
-            new_project.canvas_height = height;
 
             std::filesystem::path config_file = project_root / "project.picsel";
             std::string json_buffer;

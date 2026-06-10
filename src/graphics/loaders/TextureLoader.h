@@ -9,12 +9,12 @@
 
 namespace app {
 	struct TextureData {
-		uint32_t texturehandle;
+		uint32_t textureHandle;
 
 		uint32_t bitsPerPixel;
 		std::vector<uint8_t> data;
 		gbe::Vector2Int dimensions;
-		int colorchannels;
+		int colorChannels;
 	};
 
 	// typedef std::function<VkDescriptorSet(gbe::vulkan::Sampler*, gbe::vulkan::ImageView*)> GbeUiCallbackFunction; // REMOVED

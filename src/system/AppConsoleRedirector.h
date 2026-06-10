@@ -9,12 +9,12 @@ class AppConsoleRedirector : public std::streambuf {
 public:
     AppConsoleRedirector() {
         // Backup the original buffer
-        old_buf = std::cout.rdbuf(this);
+        oldBuf = std::cout.rdbuf(this);
     }
 
     ~AppConsoleRedirector() {
         // Restore the original buffer on exit
-        std::cout.rdbuf(old_buf);
+        std::cout.rdbuf(oldBuf);
     }
 
 protected:
@@ -25,7 +25,7 @@ protected:
             buffer += c;
             if (c == '\n') {
                 // Add to your actual app log (replace with your log logic)
-                log_lines.push_back(buffer);
+                logLines.push_back(buffer);
                 buffer.clear();
             }
         }
@@ -33,8 +33,8 @@ protected:
     }
 
 public:
-    std::vector<std::string> log_lines;
+    std::vector<std::string> logLines;
 private:
-    std::streambuf* old_buf;
+    std::streambuf* oldBuf;
     std::string buffer;
 };

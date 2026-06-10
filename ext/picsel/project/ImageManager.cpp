@@ -12,7 +12,9 @@ namespace picsel {
 
     ImageManager* ImageManager::s_instance = nullptr;
 
-    ImageManager::ImageManager() { s_instance = this; }
+    ImageManager::ImageManager() { 
+        s_instance = this;
+    }
     ImageManager::~ImageManager() { if (s_instance == this) s_instance = nullptr; }
 
     bool ImageManager::IsProjectActive() const {
@@ -193,10 +195,7 @@ namespace picsel {
         auto* proj_mgr = ProjectManager::Get();
         std::filesystem::path absolute_png_path = proj_mgr->GetActiveProjectPath().parent_path() / "frames" / new_file.actual_png_name;
 
-        int canvas_w = proj_mgr->GetActiveProject()->canvas_width;
-        int canvas_h = proj_mgr->GetActiveProject()->canvas_height;
-
-        if (PngWriter::WriteEmptyRGBA(absolute_png_path, canvas_w, canvas_h)) {
+        if (PngWriter::WriteEmptyRGBA(absolute_png_path, DEFAULT_IMAGE_DIMS, DEFAULT_IMAGE_DIMS)) {
             folder->files.push_back(std::move(new_file));
 
             // --> TRIGGER GPU RELOAD AFTER SUCCESSFUL CREATION

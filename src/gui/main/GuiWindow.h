@@ -13,10 +13,10 @@ namespace app {
 		bool is_open = false;
 		bool pointer_here = false;
 
-		inline virtual void push_styles() {
+		inline virtual void pushStyles() {
 
 		}
-		inline virtual void pop_styles() {
+		inline virtual void popStyles() {
 
 		}
 	private:
@@ -24,14 +24,14 @@ namespace app {
 		void ext_End() override;
 
 	public:
-		inline bool Get_pointer_here() {
+		inline bool IsPointerHere() {
 			return pointer_here;
 		}
 
-		inline bool Get_is_open() {
+		inline bool IsOpen() {
 			return is_open;
 		}
-		inline virtual void Set_is_open(bool newstate) {
+		inline virtual void SetOpen(bool newstate) {
 			is_open = newstate;
 		}
 		virtual std::string GetWindowId() = 0;
