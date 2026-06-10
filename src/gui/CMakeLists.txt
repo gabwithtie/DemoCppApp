@@ -8,6 +8,8 @@ add_library(${CURRENT_CMAKE_LIB} STATIC
 	"main/GuiWindow.cpp"
 	"main/MenuBar.cpp"
 
+	"features/input/InputWindow.cpp"
+	"features/input/InputMap.cpp"
 	"features/directory/DirectoryBrowser.cpp"
  "features/network/NetworkWindow.h" "features/network/NetworkWindow.cpp" "features/console/Console.cpp" "features/network/ChatWindow.cpp"  "features/menuBar/MenuBarExtension.h")
 

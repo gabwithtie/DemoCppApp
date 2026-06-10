@@ -11,6 +11,9 @@
 #include "picsel/gui/ProjectWindow.h"
 #include "picsel/gui/ImageBrowser.h"
 #include "picsel/gui/ViewportWindow.h"
+#include "picsel/gui/AnimationWindow.h"
+#include "picsel/gui/AnimationBrowser.h"
+
 
 int main(int argc, char** argv) {
 
@@ -28,14 +31,18 @@ int main(int argc, char** argv) {
 	auto projectWindow = new picsel::ProjectWindow();
 	auto imageBrowser = new picsel::ImageBrowser();
     auto viewportWindow = new picsel::ViewportWindow();
+    auto animationWindow = new picsel::AnimationWindow();
+    auto animationBrowser = new picsel::AnimationBrowser();
 
     //GUI
     app::GuiManager::WindowAssignmentOverride windowoverride = {
         .topLeft = {
-            viewportWindow
+            viewportWindow,
+            animationWindow
 		},
         .topRght = {
-            imageBrowser
+            imageBrowser,
+            animationBrowser
         },
         .hiddens = {
             projectWindow

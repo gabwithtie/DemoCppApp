@@ -1,9 +1,7 @@
 #pragma once
 
 #include "main/MenuBar.h"
-#include "features/directory/DirectoryBrowser.h"
-#include "features/network/NetworkWindow.h"
-#include "features/network/ChatWindow.h"
+#include "features/input/InputWindow.h"
 
 namespace app {
 	class GuiManager {
@@ -29,8 +27,10 @@ namespace app {
 		MenuBar menuBar;
 
 		// Window Elements
+		InputWindow inputWindow = {"hotkeys.json"};
 
 		std::vector<GuiWindow*> windows = {
+			&inputWindow
 		};
 		WindowAssignmentOverride assignmentOverride;
 

@@ -190,7 +190,10 @@ namespace picsel {
 
         // Either use ".png" or your specific engine extension like ".img.gbe" 
         // if your BatchLoader enforces it strictly.
-        new_file.actual_png_name = "canvas_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + ".png";
+        auto basename = "canvas_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+
+        new_file.backend_id = basename;
+        new_file.actual_png_name = basename + ".png";
 
         auto* proj_mgr = ProjectManager::Get();
         std::filesystem::path absolute_png_path = proj_mgr->GetActiveProjectPath().parent_path() / "frames" / new_file.actual_png_name;

@@ -185,7 +185,13 @@ namespace picsel {
             if (ImGui::BeginDragDropSource()) {
                 std::string file_payload = current_path + "|" + std::to_string(i);
                 ImGui::SetDragDropPayload("VIRTUAL_FILE_INDEX", file_payload.c_str(), file_payload.size() + 1);
-                ImGui::Text("Moving item: %s", file.name.c_str());
+
+                // We use the file name or asset path string as our identifier token
+                std::string asset_id = file.backend_id;
+                // Pass the asset ID string through the payload buffer (+1 to include null terminator)
+                ImGui::SetDragDropPayload("IMAGE_ASSET_ID", asset_id.c_str(), asset_id.size() + 1);
+
+                ImGui::Text("Moving item: %s", asset_id.c_str());
                 ImGui::EndDragDropSource();
             }
 

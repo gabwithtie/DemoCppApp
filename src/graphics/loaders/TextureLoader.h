@@ -4,6 +4,7 @@
 #include <functional>
 #include <unordered_map>
 #include <stack>
+#include <string>
 
 #include "asset/types/Texture.h"
 
@@ -17,12 +18,9 @@ namespace app {
 		int colorChannels;
 	};
 
-	// typedef std::function<VkDescriptorSet(gbe::vulkan::Sampler*, gbe::vulkan::ImageView*)> GbeUiCallbackFunction; // REMOVED
-
 	class TextureLoader : public app::AssetLoader<Texture, TextureImportData, TextureData> {
 	private:
 		TextureData defaultImage;
-		// static GbeUiCallbackFunction Ui_Callback; // REMOVED
 	protected:
 		void LoadAsset_(app::Texture* asset, const app::TextureImportData& importdata, TextureData* data) override;
 		void UnLoadAsset_(TextureData* data) override;
@@ -32,6 +30,9 @@ namespace app {
 		void AssignSelfAsLoader() override;
 		static TextureData& GetDefaultImage();
 		static void ReSave(app::Texture* asset);
+
+		// --- NEW: Syncs CPU-edited std::vector<uint8_t> back to the OpenGL texture
+		static void UpdateGPU(const std::string& assetId);
 
 		inline virtual void OnAsyncTaskCompleted(AsyncLoadTask* loadtask) override {
 			//This is a synchronous loader

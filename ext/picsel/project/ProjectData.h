@@ -7,6 +7,7 @@ namespace picsel {
 
     struct VirtualFile {
         std::string name;              // User-facing unique display label
+        std::string backend_id;   // Physical file target mapping in root/images/
         std::string actual_png_name;   // Physical file target mapping in root/images/
     };
 
