@@ -11,10 +11,8 @@ add_library(${CURRENT_CMAKE_LIB} STATIC
 )
 
 target_compile_definitions(${CURRENT_CMAKE_LIB} PUBLIC GLM_ENABLE_EXPERIMENTAL)
-find_package(glm CONFIG REQUIRED)
 target_link_libraries(${CURRENT_CMAKE_LIB} PUBLIC glm::glm)
 
-find_package(glaze CONFIG REQUIRED)
 target_link_libraries(${CURRENT_CMAKE_LIB} PRIVATE glaze::glaze)
 
 message("[GABENGINE] LOADED: " ${CMAKE_CURRENT_SOURCE_DIR})

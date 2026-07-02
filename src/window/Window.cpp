@@ -2,8 +2,8 @@
 
 #include <SDL2/SDL.h>
 #include <GL/glew.h>
-#include "imgui_impl_sdl2.h"
-#include "imgui_impl_opengl3.h"
+#include <backends/imgui_impl_sdl2.h>
+#include <backends/imgui_impl_opengl3.h>
 
 namespace app {
 	Window::Window(const char* name, int _w, int _h)

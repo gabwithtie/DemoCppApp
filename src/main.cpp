@@ -1,58 +1,32 @@
-﻿//Additional includes go here
-#include "window/Window.h"
+﻿#include "window/Window.h"
 #include "gui/GuiManager.h"
 #include "gui/features/console/Console.h"
-#include "network/Network.h"
 #include "system/AppConsoleRedirector.h"
 #include "graphics/loaders/TextureLoader.h"
 
-#include "picsel/picsel.h"
-
-#include "picsel/gui/ProjectWindow.h"
-#include "picsel/gui/IllustrationBrowser.h"
-#include "picsel/gui/IllustrationWindow.h"
-#include "picsel/gui/AnimationBrowser.h"
-
-#include "picsel/gui/animation/AnimationWindow.h"
-
+//Application Specific Includes
 
 int main(int argc, char** argv) {
 
     AppConsoleRedirector redirector;
 
     // Initialize Window + GUI
-    app::Window window = app::Window("Picsel", 1280, 720);
+    app::Window window = app::Window("GabApp", 1280, 720);
     app::Console consolewindow = app::Console(redirector);
 
     //GRAPHICS
     app::TextureLoader textureloader;
     textureloader.AssignSelfAsLoader();
 
-    //SPECIFIC CONSTRUCTOR
-	auto projectWindow = new picsel::ProjectWindow();
-	auto illustrationBrowser = new picsel::IllustrationBrowser();
-    auto viewportWindow = new picsel::IllustrationWindow();
-    auto animationWindow = new picsel::AnimationWindow();
-    auto animationBrowser = new picsel::AnimationBrowser();
 
     //GUI
     app::GuiManager::WindowAssignmentOverride windowoverride = {
-        .topLeft = {
-            viewportWindow,
-            animationWindow
-		},
-        .topRght = {
-            illustrationBrowser,
-            animationBrowser
-        },
-        .hiddens = {
-            projectWindow
-        }
+        
     };
     app::GuiManager guimanager(windowoverride);
 
     //GAME SPECIFIC PRE-MAIN
-    auto picsel_backend = picsel::Picsel();
+
 
     //MAIN
     bool done = false;

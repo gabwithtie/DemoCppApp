@@ -1,30 +1,4 @@
 {
 	"dependencies": [
-		"vcpkg-cmake-config",
-		"vcpkg-cmake",
-
-		"glm",
-		"stb",
-
-		"sdl2",
-		"glew",
-
-		{
-			"name": "imgui",
-			"features": [ "sdl2-binding", "opengl3-binding", "docking-experimental" ]
-		},
-
-		"glaze",
-		"nativefiledialog-extended"
-	],
-	"overrides": [
-		{
-			"name": "glaze",
-			"version": "2.6.9"
-		},
-		{
-			"name": "imgui",
-			"version": "1.91.8"
-		}
 	]
 }
