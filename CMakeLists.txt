@@ -14,6 +14,16 @@ endif()
 # Set CPP version
 cmake_minimum_required (VERSION 3.22)
 set(CMAKE_CXX_STANDARD 23)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    if(MSVC)
+        # Using clang-cl: use MSVC-style flags
+        add_compile_options(/Zi)
+        add_link_options(/DEBUG)
+    else()
+        # Using standard Clang: use -g
+        add_compile_options(-g)
+    endif()
+endif()
 
 # Set name to avoid copy pasting it everywhere
 set(PROJECT_NAME "DemoCppApp")
@@ -157,6 +167,7 @@ foreach(lib ${LINKED_LIBS})
     string(APPEND LINKED_LIBS_STRING " | ${lib} ")
     target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ext")
+    target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty")
 endforeach()
 
 # Finally, link all libraries to our main
@@ -180,6 +191,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE glaze::glaze)
 
 add_library(app_implementation_libs INTERFACE)
 
+add_subdirectory("ext/trainsim")
+target_link_libraries(app_implementation_libs INTERFACE trainsim)
 
 # For each folder/library above, make it so that they can #include anything from the root /src folder
 get_target_property(LINKED_LIBS app_implementation_libs INTERFACE_LINK_LIBRARIES)
@@ -188,6 +201,7 @@ foreach(lib ${LINKED_LIBS})
         string(APPEND LINKED_LIBS_STRING " | ${lib} ")
         target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
         target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ext")
+        target_include_directories(${lib} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty")
     endif()
 endforeach()
 
