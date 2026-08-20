@@ -1,27 +1,42 @@
 ﻿#include "window/Window.h"
 #include "gui/GuiManager.h"
-#include "gui/features/console/Console.h"
-#include "system/AppConsoleRedirector.h"
-#include "graphics/loaders/TextureLoader.h"
 
 //Application Specific Includes
+#include "game/GameSimulation.hpp"
+#include "game/train/TerminalMapWindow.hpp"
+#include "game/train/TrainListWindow.hpp"
+#include "game/finance/FinanceWindow.hpp"
+#include "game/finance/FinanceManager.hpp"
+#include "game/station/StationViewerWindow.hpp"
 
 int main(int argc, char** argv) {
 
-    AppConsoleRedirector redirector;
-
     // Initialize Window + GUI
     app::Window window = app::Window("GabApp", 1280, 720);
-    app::Console consolewindow = app::Console(redirector);
 
-    //GRAPHICS
-    app::TextureLoader textureloader;
-    textureloader.AssignSelfAsLoader();
+	app::GameSimulation simulation;
 
+    app::TerminalMapWindow terminalMapWindow(simulation);
+	app::TrainListWindow trainListWindow(simulation);
+	app::FinanceWindow financeWindow(simulation.GetFinanceManager());
+	app::StationViewerWindow stationViewerWindow(simulation);
 
     //GUI
     app::GuiManager::WindowAssignmentOverride windowoverride = {
-        
+		.showns = {
+			{
+                &terminalMapWindow
+            },
+            {
+                &trainListWindow
+            },
+            {
+                &financeWindow
+            },
+            {
+                &stationViewerWindow
+            }
+		}
     };
     app::GuiManager guimanager(windowoverride);
 
@@ -37,6 +52,7 @@ int main(int argc, char** argv) {
             break;
 
         guimanager.Draw();
+		simulation.Update(1.0f / 60.0f); // Assuming a fixed timestep for simplicity)
 
         window.CommitFrame();
     }
