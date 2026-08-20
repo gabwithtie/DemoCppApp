@@ -145,12 +145,6 @@ target_link_libraries(app_internal_libs INTERFACE app_window)
 add_subdirectory("src/math")
 target_link_libraries(app_internal_libs INTERFACE app_math)
 
-add_subdirectory("src/asset")
-target_link_libraries(app_internal_libs INTERFACE app_asset)
-
-add_subdirectory("src/graphics")
-target_link_libraries(app_internal_libs INTERFACE app_graphics)
-
 # For each folder/library above, make it so that they can #include anything from the root /src folder
 get_target_property(LINKED_LIBS app_internal_libs INTERFACE_LINK_LIBRARIES)
 foreach(lib ${LINKED_LIBS})
@@ -160,7 +154,9 @@ foreach(lib ${LINKED_LIBS})
 endforeach()
 
 # Finally, link all libraries to our main
-target_link_libraries(${PROJECT_NAME} PRIVATE app_internal_libs)
+add_subdirectory("tools")
+
+target_link_libraries(${PROJECT_NAME} PRIVATE app_internal_libs gbe::tools)
 
 #=========================# EXTERNAL LIBRARIES #=========================#
 #WINDOW CORE LIBRARY

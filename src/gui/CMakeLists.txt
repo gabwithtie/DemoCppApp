@@ -11,7 +11,6 @@ add_library(${CURRENT_CMAKE_LIB} STATIC
 	"features/input/InputWindow.cpp"
 	"features/input/InputMap.cpp"
 	"features/directory/DirectoryBrowser.cpp"
-	"features/console/Console.cpp" 
 	"features/menuBar/MenuBarExtension.h")
 
 
