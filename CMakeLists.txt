@@ -127,8 +127,8 @@ target_link_libraries(app_internal_libs INTERFACE gbe::app::window)
 add_subdirectory("src/math")
 target_link_libraries(app_internal_libs INTERFACE gbe::app::math)
 
-add_subdirectory("src/game")
-target_link_libraries(app_internal_libs INTERFACE gbe::app::game)
+add_subdirectory("src/app")
+target_link_libraries(app_internal_libs INTERFACE gbe::app::app)
 
 add_subdirectory("src/tools")
 target_link_libraries(app_internal_libs INTERFACE gbe::tools)

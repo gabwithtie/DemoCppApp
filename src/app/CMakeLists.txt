@@ -1,21 +1,9 @@
 #SETUP
-set(CUR_TARGET_SUBLIBNAME game)
+set(CUR_TARGET_SUBLIBNAME app)
 set(CUR_TARGET_NAME gbe_app_${CUR_TARGET_SUBLIBNAME})
 
 set(${CUR_TARGET_NAME}_src
-	"map/TerminalMapWindow.cpp"
-	"map/MapManager.cpp"
-
-	"train/TrainListWindow.cpp"
-	"train/TrainManager.cpp"
-	
-	"finance/FinanceManager.cpp"
-	"finance/FinanceWindow.cpp"
-	
-	"station/StationViewerWindow.cpp"
-	"station/MarketManager.cpp"
-	
-	"GameSimulation.cpp"
+	"App.cpp"
 )
 
 add_library(${CUR_TARGET_NAME} STATIC ${${CUR_TARGET_NAME}_src})
