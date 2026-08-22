@@ -10,6 +10,13 @@ set(${CUR_TARGET_NAME}_src
 
 	gui/clip/ClipEditorWindow.cpp
 	gui/clip/NoteManager.cpp
+
+	gui/instrument/InstrumentWindow.cpp
+
+	audio/AudioEngine.cpp
+	audio/MiniAudioImpl.cpp
+
+	midi/MidiInterface.cpp
 )
 
 add_library(${CUR_TARGET_NAME} STATIC ${${CUR_TARGET_NAME}_src})
@@ -22,3 +29,5 @@ target_include_directories(${CUR_TARGET_NAME} PRIVATE ${imgui_SOURCE_DIR})
 target_link_libraries(${CUR_TARGET_NAME} PUBLIC gbe::app::math)
 target_link_libraries(${CUR_TARGET_NAME} PUBLIC gbe::app::gui)
 target_link_libraries(${CUR_TARGET_NAME} PUBLIC gbe::tools)
+target_link_libraries(${CUR_TARGET_NAME} PUBLIC tinysoundfont)
+target_include_directories(${CUR_TARGET_NAME} PUBLIC ${miniaudio_SOURCE_DIR})

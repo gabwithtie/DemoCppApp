@@ -7,11 +7,6 @@ namespace gsr::gui {
 void NoteManager::HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) {
     ImGuiIO& io = ImGui::GetIO();
 
-    // Toggle Play/Pause on Spacebar (Ignore if editing text)
-    if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space, false)) {
-        app.transport.state = app.transport.state == PlaybackState::Playing ? PlaybackState::Paused : PlaybackState::Playing;
-    }
-
     // Copy selected notes (Ctrl+C)
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C)) {
         m_note_clipboard.clear();

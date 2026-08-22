@@ -8,7 +8,7 @@
 namespace app {
 	class GuiWindow : public GuiElement {
 	protected:
-		bool is_open = false;
+		bool is_open = true;
 		bool pointer_here = false;
 
 		inline virtual void pushStyles() {

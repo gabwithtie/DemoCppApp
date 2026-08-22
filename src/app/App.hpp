@@ -1,6 +1,8 @@
 #pragma once
 
 #include "model/Project.hpp"
+#include "audio/AudioEngine.hpp"
+
 #include "ISerializable.hpp"
 #include "File/Parser.hpp"
 #include <string>
@@ -8,21 +10,14 @@
 
 namespace gsr {
 
-enum class PlaybackState {
-    Stopped,
-    Playing,
-    Paused
-};
+
+enum class PlaybackState { Stopped, Playing, Paused };
 
 struct Transport {
     PlaybackState state{PlaybackState::Stopped};
-    uint64_t current_tick{0};        // Master playhead position in PPQ ticks
-    double current_time_sec{0.0};    // Playhead position in real seconds
-    
-    // Looping bounds
-    bool loop_enabled{false};
-    uint64_t loop_start_tick{0};
-    uint64_t loop_end_tick{3840};    // Default: 4 bars at 960 PPQ (4/4 time)
+    std::atomic<uint64_t> current_tick{0}; // Thread-safe atomic playhead position
+    double bpm{120.0};
+    uint32_t ppq{960};
 };
 
 // Add / update BarSelection inside App.hpp
@@ -105,6 +100,7 @@ public:
 
 private:
     inline static App* s_instance{nullptr};
+    audio::AudioEngine audio_engine{*this};
 };
 
 } // namespace gsr

@@ -8,6 +8,7 @@
 #include "gui/MenuBarExtension.hpp"
 #include "gui/timeline/TimelineWindow.hpp"
 #include "gui/clip/ClipEditorWindow.hpp"
+#include "gui/instrument/InstrumentWindow.hpp"
 
 #include <imgui.h>
 
@@ -24,16 +25,17 @@ int main(int argc, char** argv) {
     // 3. Instantiate GUI Windows
     gsr::gui::TimelineWindow timelineWindow(app);
     gsr::gui::ClipEditorWindow clipEditorWindow(app);
+    gsr::gui::InstrumentWindow instrumentWindow(app);
+
     gsr::MenuBarExtension menuBarExtension;
 
     // 4. Configure Layout Assignments via Designated Initializers
     app::GuiManager::WindowAssignmentOverride windowoverride = {
         .showns = {
             {
-                &timelineWindow
-            },
-            {
-                &clipEditorWindow
+                &timelineWindow,
+                &clipEditorWindow,
+                &instrumentWindow
             }
         }
     };

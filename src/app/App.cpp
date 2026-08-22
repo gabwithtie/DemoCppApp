@@ -1,54 +1,49 @@
 #include "App.hpp"
 #include <algorithm>
 
+#include <imgui.h>
+
 namespace gsr {
 
 App::App() = default;
 App::~App() = default;
 
-bool App::init() {
-    s_instance = this;
-    is_running = true;
-    return true;
-}
-
 void App::process_input() {
-    // Process global application hotkeys (e.g., Spacebar for Play/Pause)
-}
+    ImGuiIO& io = ImGui::GetIO();
 
-void App::update(float delta_time) {
-    if (transport.state != PlaybackState::Playing) {
-        return;
-    }
-
-    transport.current_time_sec += delta_time;
-
-    // Fetch active BPM (defaults to first tempo entry or fallback 120.0)
-    double bpm = project.tempo_map.empty() ? 120.0 : project.tempo_map[0].bpm;
-
-    // Calculate delta ticks: (BPM / 60) * PPQ * delta_seconds
-    double ticks_per_second = (bpm / 60.0) * static_cast<double>(project.ppq);
-    uint64_t elapsed_ticks = static_cast<uint64_t>(ticks_per_second * delta_time);
-    
-    transport.current_tick += elapsed_ticks;
-
-    // Handle timeline looping logic
-    if (transport.loop_enabled && transport.current_tick >= transport.loop_end_tick) {
-        uint64_t loop_length = transport.loop_end_tick - transport.loop_start_tick;
-        if (loop_length > 0) {
-            uint64_t overshoot = (transport.current_tick - transport.loop_start_tick) % loop_length;
-            transport.current_tick = transport.loop_start_tick + overshoot;
+    // Trigger Play/Pause globally unless actively typing in a text input box
+    if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space, false)) {
+        if (transport.state == PlaybackState::Playing) {
+            transport.state = PlaybackState::Paused;
         } else {
-            transport.current_tick = transport.loop_start_tick;
+            // Jump to selection start if a bar selection is active
+            if (view.cell_selection.active) {
+                uint32_t ticks_per_bar = project.ppq * 4;
+                transport.current_tick = static_cast<uint64_t>(view.cell_selection.start_bar) * ticks_per_bar;
+            }
+            transport.state = PlaybackState::Playing;
         }
     }
 }
 
-void App::render_ui() {
-    // DockSpace submission and window frame calls (Piano Roll, Score, Inspector) go here
+bool App::init() {
+    s_instance = this;
+    is_running = true;
+
+    // Start Audio Engine & Callback Thread
+    if (!audio_engine.Init(44100, 512)) {
+        return false;
+    }
+
+    return true;
+}
+
+void App::update(float delta_time) {
+    
 }
 
 void App::shutdown() {
+    audio_engine.Shutdown();
     is_running = false;
 }
 

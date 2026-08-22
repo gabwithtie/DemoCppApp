@@ -27,6 +27,14 @@ struct Clip {
     ClipType type{ClipType::Standard};
 };
 
+// Add to src/app/model/Track.hpp
+struct Effect {
+    std::string name{"Default Effect"};
+    bool enabled{true};
+    float parameter_1{0.5f};
+    float parameter_2{0.5f};
+};
+
 struct Track {
     std::string name{"Track 1"};
     uint8_t midi_channel{0};
@@ -35,6 +43,15 @@ struct Track {
     float volume{1.0f};
     float pan{0.0f};
 
+    // Instrument Settings
+    std::string instrument_type{"SoundFont Synthesizer"};
+    std::string soundfont_path{"default/default.SF2"};
+    int preset_index{0};
+    float instrument_gain{1.0f};
+    bool needs_reload{false}; // Signal flag for audio thread to rebuild instrument
+
+    std::vector<Effect> midi_effects;
+    std::vector<Effect> audio_effects;
     std::vector<Clip> clips;
     std::vector<Note> notes;
 };

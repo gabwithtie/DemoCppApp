@@ -1,0 +1,2044 @@
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\App.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "model/Project.hpp"
+#include "audio/AudioEngine.hpp"
+
+#include "ISerializable.hpp"
+#include "File/Parser.hpp"
+#include <string>
+#include <memory>
+
+namespace gsr {
+
+
+enum class PlaybackState { Stopped, Playing, Paused };
+
+struct Transport {
+    PlaybackState state{PlaybackState::Stopped};
+    std::atomic<uint64_t> current_tick{0}; // Thread-safe atomic playhead position
+    double bpm{120.0};
+    uint32_t ppq{960};
+};
+
+// Add / update BarSelection inside App.hpp
+struct BarSelection {
+    int track_index{-1};
+    uint32_t start_bar{0};
+    uint32_t num_bars{0};
+    uint32_t drag_anchor_bar{0};
+    bool active{false};
+};
+
+// Add to ViewState inside App.hpp:
+struct ViewState {
+    int active_track_index{0};
+    BarSelection cell_selection;
+    
+    // Clip Clipboard
+    Model::Clip clip_clipboard;
+    bool has_copied_clip{false};
+
+    // Panel Visibility
+    bool show_piano_roll{true};
+    bool show_score_view{true};
+    bool show_inspector{true};
+    bool show_timeline{true};
+
+    // Piano Roll View Metrics
+    float px_per_tick{0.05f};
+    float row_height{18.0f};
+    uint64_t scroll_tick{0};
+    uint8_t scroll_pitch{72};
+    
+    // Grid & Quantization Settings
+    uint32_t quantize_ticks{240};
+    bool snap_to_grid{true};
+};
+
+class App : public gbe::ISerializable {
+public:
+    App();
+    ~App();
+
+    inline static App& GetInstance(){
+        return *s_instance;
+    }
+
+    // Enforce single-instance lifetime ownership
+    App(const App&) = delete;
+    App& operator=(const App&) = delete;
+
+    // Primary Lifecycle Steps
+    bool init();
+    void process_input();
+    void update(float delta_time);
+    void render_ui();
+    void shutdown();
+
+    // Manual serialization using raw Glaze via Parser helpers
+    gbe::SerializedData Serialize() override {
+        gbe::SerializedData data = gbe::ISerializable::Serialize();
+        data.serialized_variables["project"] = gbe::Parser::ExportClassStr(project);
+        return data;
+    }
+
+    void Deserialize(gbe::SerializedData& data) override {
+        gbe::ISerializable::Deserialize(data);
+        auto it = data.serialized_variables.find("project");
+        if (it != data.serialized_variables.end()) {
+            gbe::Parser::PopulateClassStr(project, it->second);
+        }
+    }
+
+public:
+    Model::Project project;
+    Transport transport;
+    ViewState view;
+
+    bool is_running{true};
+    std::string current_filepath;
+
+private:
+    inline static App* s_instance{nullptr};
+    audio::AudioEngine audio_engine{*this};
+};
+
+} // namespace gsr 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\ProjectLoader.hpp 
+================================================== 
+ 
+#pragma once
+
+#include <filesystem>
+#include <string>
+#include "File/Parser.hpp"
+#include "App.hpp"
+
+namespace gsr {
+
+class ProjectLoader {
+    struct ProjectInfo {
+        std::string entryscene;
+    };
+
+    inline static std::filesystem::path currentProjectDir;
+    inline static std::filesystem::path currentSceneFile;
+    inline static std::filesystem::path currentProjectFile;
+
+public:
+    inline static std::filesystem::path GetCurrentProjectDir() { return currentProjectDir; }
+    inline static std::filesystem::path GetCurrentSceneFile() { return currentSceneFile; }
+    inline static std::filesystem::path GetCurrentProjectFile() { return currentProjectFile; }
+
+    inline static std::filesystem::path GetAbsolutePath(const std::filesystem::path& relativePath) {
+        return std::filesystem::absolute(currentProjectDir / relativePath);
+    }
+
+    static inline void LoadProject(const std::filesystem::path& path) {
+        ProjectInfo newinfo;
+
+        if (gbe::Parser::PopulateClass(newinfo, path) && !newinfo.entryscene.empty()) {
+            currentProjectDir = path.parent_path();
+            currentSceneFile = currentProjectDir / newinfo.entryscene;
+            currentProjectFile = path;
+
+            App::GetInstance().DeserializeFromFile(currentSceneFile);
+        } else {
+            currentProjectDir = path.parent_path();
+            currentSceneFile = path;
+            currentProjectFile = path;
+
+            App::GetInstance().DeserializeFromFile(path);
+        }
+    }
+
+    static inline void SaveProject(const std::filesystem::path& path) {
+        currentProjectFile = path;
+        currentProjectDir = path.parent_path();
+
+        App::GetInstance().SerializeToFile(path);
+    }
+};
+
+} // namespace gsr 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\App.cpp 
+================================================== 
+ 
+#include "App.hpp"
+#include <algorithm>
+
+namespace gsr {
+
+App::App() = default;
+App::~App() = default;
+
+void App::process_input() {
+    // Process global application hotkeys (e.g., Spacebar for Play/Pause)
+}
+
+bool App::init() {
+    s_instance = this;
+    is_running = true;
+
+    // Start Audio Engine & Callback Thread
+    if (!audio_engine.Init(44100, 512)) {
+        return false;
+    }
+
+    return true;
+}
+
+void App::update(float delta_time) {
+    // Keep UI & ViewState updates here. 
+    // Transport tick progression is now managed inside AudioEngine::AudioCallback to preserve audio timing![cite: 1]
+}
+
+void App::shutdown() {
+    audio_engine.Shutdown();
+    is_running = false;
+}
+
+
+} // namespace gsr 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\audio\AudioEngine.hpp 
+================================================== 
+ 
+// src/app/audio/AudioEngine.hpp
+#pragma once
+#include "TrackAudioProcessor.hpp"
+#include <vector>
+#include <memory>
+#include <cstdint>
+
+namespace gsr {
+class App; // Forward declaration
+
+namespace audio {
+
+class AudioEngine {
+public:
+    explicit AudioEngine(App& app);
+    ~AudioEngine();
+
+    bool Init(uint32_t sample_rate = 44100, uint32_t buffer_size = 512);
+    void Shutdown();
+
+    // The high-priority audio processing callback invoked by hardware
+    void AudioCallback(float* output_buffer, uint32_t frame_count);
+
+    std::vector<std::unique_ptr<TrackAudioProcessor>>& GetTrackProcessors() {
+        return m_track_processors;
+    }
+
+private:
+    App& m_app;
+    uint32_t m_sample_rate{44100};
+    std::vector<std::unique_ptr<TrackAudioProcessor>> m_track_processors;
+
+    void SyncTrackProcessors();
+    void ProcessPlaybackMidi(uint64_t start_tick, uint64_t end_tick);
+};
+
+} // namespace audio
+} // namespace gsr 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\audio\IInstrument.hpp 
+================================================== 
+ 
+// src/app/audio/IInstrument.hpp
+#pragma once
+#include "midi/MidiInterface.hpp"
+#include <cstddef>
+
+namespace gsr::audio {
+
+class IInstrument {
+public:
+    virtual ~IInstrument() = default;
+    virtual void ProcessMidiEvent(const midi::MidiMessage& msg) = 0;
+    virtual void RenderAudioBlock(float* output_buffer, size_t num_frames, double sample_rate) = 0;
+};
+
+} // namespace gsr::audio 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\audio\SoundFontInstrument.hpp 
+================================================== 
+ 
+// src/app/audio/SoundFontInstrument.hpp
+#pragma once
+#include "IInstrument.hpp"
+#define TSF_IMPLEMENTATION
+#include <tsf.h>
+#include <string>
+
+namespace gsr::audio {
+
+class SoundFontInstrument : public IInstrument {
+public:
+    explicit SoundFontInstrument(const std::string& path, double sample_rate = 44100.0) {
+        m_synth = tsf_load_filename(path.c_str());
+        if (m_synth) {
+            tsf_set_output(m_synth, TSF_STEREO_INTERLEAVED, static_cast<int>(sample_rate), 0.0f);
+        }
+    }
+
+    ~SoundFontInstrument() override {
+        if (m_synth) tsf_close(m_synth);
+    }
+
+    void ProcessMidiEvent(const midi::MidiMessage& msg) override {
+        if (!m_synth) return;
+        switch (msg.type) {
+            case midi::MidiMessageType::NoteOn:
+                tsf_note_on(m_synth, 0, msg.data1, static_cast<float>(msg.data2) / 127.0f);
+                break;
+            case midi::MidiMessageType::NoteOff:
+                tsf_note_off(m_synth, 0, msg.data1);
+                break;
+            case midi::MidiMessageType::ControlChange:
+                if (msg.data1 == 123) tsf_reset(m_synth);
+                break;
+            default:
+                break;
+        }
+    }
+
+    void RenderAudioBlock(float* output_buffer, size_t num_frames, double sample_rate) override {
+        if (!m_synth) {
+            std::fill_n(output_buffer, num_frames * 2, 0.0f);
+            return;
+        }
+        tsf_render_float(m_synth, output_buffer, static_cast<int>(num_frames), 0);
+    }
+
+private:
+    tsf* m_synth{nullptr};
+};
+
+} // namespace gsr::audio 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\audio\TrackAudioProcessor.hpp 
+================================================== 
+ 
+// src/app/audio/TrackAudioProcessor.hpp
+#pragma once
+#include "IInstrument.hpp"
+#include "midi/MidiInterface.hpp"
+#include <memory>
+#include <vector>
+
+namespace gsr::audio {
+
+class TrackAudioProcessor {
+public:
+    TrackAudioProcessor() = default;
+
+    void SetInstrument(std::unique_ptr<IInstrument> instrument) {
+        m_instrument = std::move(instrument);
+    }
+
+    midi::MidiInterface& GetMidiInterface() { return m_midi_interface; }
+
+    void ProcessAndRender(float* track_output, size_t num_frames, double sample_rate) {
+        // 1. Flush MIDI queued specifically for this track
+        std::vector<midi::MidiMessage> pending_messages;
+        m_midi_interface.FlushPendingMessages(pending_messages);
+
+        // 2. Dispatch MIDI to active instrument and render buffer
+        if (m_instrument) {
+            for (const auto& msg : pending_messages) {
+                m_instrument->ProcessMidiEvent(msg);
+            }
+            m_instrument->RenderAudioBlock(track_output, num_frames, sample_rate);
+        } else {
+            std::fill_n(track_output, num_frames * 2, 0.0f);
+        }
+    }
+
+private:
+    std::unique_ptr<IInstrument> m_instrument;
+    midi::MidiInterface m_midi_interface; // Per-track MIDI queue
+};
+
+} // namespace gsr::audio 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\audio\AudioEngine.cpp 
+================================================== 
+ 
+// src/app/audio/AudioEngine.cpp
+#include "AudioEngine.hpp"
+#include "App.hpp"
+#include <algorithm>
+
+#include "SoundFontInstrument.hpp"
+
+namespace gsr::audio {
+
+AudioEngine::AudioEngine(App& app) : m_app(app) {}
+AudioEngine::~AudioEngine() { Shutdown(); }
+
+bool AudioEngine::Init(uint32_t sample_rate, uint32_t buffer_size) {
+    m_sample_rate = sample_rate;
+    // Initialize hardware stream (e.g. miniaudio device init pointing to AudioCallback)
+    SyncTrackProcessors();
+    return true;
+}
+
+void AudioEngine::Shutdown() {
+    // Stop audio hardware stream
+}
+
+void AudioEngine::SyncTrackProcessors() {
+    // Ensure processor count matches project track count
+    while (m_track_processors.size() < m_app.project.tracks.size()) {
+        m_track_processors.push_back(std::make_unique<TrackAudioProcessor>());
+    }
+}
+
+void AudioEngine::ProcessPlaybackMidi(uint64_t start_tick, uint64_t end_tick) {
+    for (size_t i = 0; i < m_app.project.tracks.size(); ++i) {
+        auto& track = m_app.project.tracks[i];
+        if (track.muted || i >= m_track_processors.size()) continue;
+
+        auto& midi_iface = m_track_processors[i]->GetMidiInterface();
+
+        for (const auto& clip : track.clips) {
+            uint64_t clip_start = clip.start_tick;
+            uint64_t clip_end = clip.start_tick + clip.duration;
+
+            // Check if clip falls within current transport block
+            if (clip_end < start_tick || clip_start > end_tick) continue;
+
+            for (const auto& note : clip.notes) {
+                uint64_t abs_note_start = clip_start + note.start_tick;
+                uint64_t abs_note_end = abs_note_start + note.duration;
+
+                if (abs_note_start >= start_tick && abs_note_start < end_tick) {
+                    midi_iface.SendNoteOn(track.midi_channel, note.pitch, note.velocity);
+                }
+                if (abs_note_end >= start_tick && abs_note_end < end_tick) {
+                    midi_iface.SendNoteOff(track.midi_channel, note.pitch);
+                }
+            }
+        }
+    }
+}
+
+void AudioEngine::AudioCallback(float* output_buffer, uint32_t frame_count) {
+    std::fill_n(output_buffer, frame_count * 2, 0.0f); // Clear buffer (stereo)
+
+    double bpm = m_app.project.tempo_map.empty() ? 120.0 : m_app.project.tempo_map[0].bpm;
+    double seconds_per_buffer = static_cast<double>(frame_count) / m_sample_rate;
+    double ticks_per_second = (bpm / 60.0) * m_app.project.ppq;
+    uint64_t buffer_ticks = static_cast<uint64_t>(ticks_per_second * seconds_per_buffer);
+
+    if (m_app.transport.state == PlaybackState::Playing) {
+        uint64_t start_tick = m_app.transport.current_tick.load(std::memory_order_relaxed);
+        uint64_t end_tick = start_tick + buffer_ticks;
+
+        ProcessPlaybackMidi(start_tick, end_tick);
+
+        // Store the new audio-synced position
+        m_app.transport.current_tick.store(end_tick, std::memory_order_relaxed);
+    }
+
+    // 2. Render & Mix Track Audio
+    std::vector<float> track_buffer(frame_count * 2, 0.0f);
+
+    for (size_t i = 0; i < m_app.project.tracks.size(); ++i) {
+        auto& track = m_app.project.tracks[i];
+        if (track.muted || i >= m_track_processors.size()) continue;
+
+        // Check for UI dynamic reloading (e.g., loaded a new .sf2)
+        if (track.needs_reload) {
+            if (track.instrument_type == "SoundFont Synthesizer" && !track.soundfont_path.empty()) {
+                m_track_processors[i]->SetInstrument(
+                    std::make_unique<SoundFontInstrument>(track.soundfont_path, m_sample_rate)
+                );
+            }
+            track.needs_reload = false;
+        }
+
+        m_track_processors[i]->ProcessAndRender(track_buffer.data(), frame_count, m_sample_rate);
+
+        // Mix track buffer to master output
+        for (size_t f = 0; f < frame_count * 2; ++f) {
+            output_buffer[f] += track_buffer[f] * track.volume;
+        }
+    }
+}
+
+} // namespace gsr::audio 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\MenuBarExtension.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "gui/features/menubar/MenuBarExtension.h"
+#include "app/ProjectLoader.hpp"
+#include "app/App.hpp"
+#include "FileDialogue.hpp"
+#include "CreateInstance.hpp"
+#include <imgui.h>
+
+namespace gsr {
+
+class MenuBarExtension : public app::MenuBarExtension {
+public:
+    MenuBarExtension() = default;
+    ~MenuBarExtension() = default;
+
+    void DrawMenuBarMenu() override {
+        // --- File Menu ---
+        if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("New Project", "Ctrl+N")) {
+                App::GetInstance().project = Model::Project{};
+            }
+
+            if (ImGui::MenuItem("Load Project", "Ctrl+O")) {
+                std::string outPath = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::OPEN, "gsrproj");
+                if (!outPath.empty()) {
+                    ProjectLoader::LoadProject(outPath);
+                }
+            }
+
+            if (ImGui::MenuItem("Save Project", "Ctrl+S")) {
+                std::string outPath = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::SAVE, "gsrproj");
+                if (!outPath.empty()) {
+                    ProjectLoader::SaveProject(outPath);
+                }
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Exit", "Alt+F4")) {
+                App::GetInstance().shutdown();
+            }
+
+            ImGui::EndMenu();
+        }
+    }
+};
+
+} // namespace gsr 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\ClipEditorWindow.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "../gui/main/GuiWindow.h"
+#include "App.hpp"
+#include "NoteManager.hpp"
+#include "model/Track.hpp"
+#include <imgui.h>
+
+namespace gsr::gui {
+
+class ClipEditorWindow : public app::GuiWindow {
+public:
+    explicit ClipEditorWindow(gsr::App& app);
+    ~ClipEditorWindow() = default;
+
+    std::string GetWindowId() override { return "Piano Roll"; }
+    void DrawSelf() override;
+
+private:
+    gsr::App& m_app;
+    NoteManager m_note_manager;
+
+    float m_note_height = 14.0f;
+    float m_px_per_tick = 0.04f;
+    uint32_t m_grid_snap_ticks = 240;
+
+    Model::Clip* GetSelectedClip();
+    static std::string GetPitchName(uint8_t pitch);
+    void DrawPianoKeys(ImDrawList* draw_list, ImVec2 origin, float key_width, float total_height);
+    void DrawGridBackground(ImDrawList* draw_list, Model::Clip& clip, ImVec2 origin, ImVec2 grid_size);
+};
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\NoteManager.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "App.hpp"
+#include "model/Track.hpp"
+#include <imgui.h>
+#include <vector>
+
+namespace gsr::gui {
+
+struct NoteInitialState {
+    size_t index;
+    uint64_t start_tick;
+    uint64_t duration;
+    uint8_t pitch;
+};
+
+class NoteManager {
+public:
+    NoteManager() = default;
+    ~NoteManager() = default;
+
+    void ProcessAndDrawNotes(
+        gsr::App& app,
+        Model::Clip& clip,
+        ImVec2 grid_origin,
+        ImVec2 grid_size,
+        float px_per_tick,
+        float note_height,
+        uint32_t grid_snap_ticks,
+        bool canvas_hovered
+    );
+
+private:
+    std::vector<Model::Note> m_note_clipboard;
+
+    // Interaction State
+    int m_active_note_idx = -1;
+    bool m_is_resizing = false;
+    bool m_is_dragging = false;
+
+    // Group Drag/Resize Initial States
+    std::vector<NoteInitialState> m_selected_initial_states;
+
+    // Box Selection State
+    bool m_is_box_selecting = false;
+    ImVec2 m_box_select_start{0.0f, 0.0f};
+
+    ImVec2 m_drag_mouse_start{0.0f, 0.0f};
+
+    void HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip);
+    void DrawPlayhead(gsr::App& app, const Model::Clip& clip, ImVec2 grid_origin, ImVec2 grid_size, float px_per_tick, ImDrawList* draw_list);
+};
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\ClipEditorWindow.cpp 
+================================================== 
+ 
+#include "ClipEditorWindow.hpp"
+#include <algorithm>
+#include <cmath>
+#include <string>
+
+namespace gsr::gui {
+
+ClipEditorWindow::ClipEditorWindow(gsr::App& app)
+    : m_app(app) {}
+
+Model::Clip* ClipEditorWindow::GetSelectedClip() {
+    int trk_idx = m_app.view.active_track_index;
+    if (trk_idx < 0 || trk_idx >= static_cast<int>(m_app.project.tracks.size())) {
+        return nullptr;
+    }
+
+    auto& active_track = m_app.project.tracks[trk_idx];
+    for (auto& clip : active_track.clips) {
+        if (clip.selected) return &clip;
+    }
+
+    for (auto& trk : m_app.project.tracks) {
+        for (auto& clip : trk.clips) {
+            if (clip.selected) return &clip;
+        }
+    }
+
+    const auto& sel = m_app.view.cell_selection;
+    if (sel.active && sel.track_index == trk_idx) {
+        uint32_t ticks_per_bar = m_app.project.ppq * 4;
+        uint64_t sel_start = sel.start_bar * ticks_per_bar;
+        uint64_t sel_dur = sel.num_bars * ticks_per_bar;
+
+        for (auto& clip : active_track.clips) {
+            if ((sel_start < clip.start_tick + clip.duration) && (sel_start + sel_dur > clip.start_tick)) {
+                return &clip;
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+std::string ClipEditorWindow::GetPitchName(uint8_t pitch) {
+    static const char* note_names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    int octave = (pitch / 12) - 1;
+    return std::string(note_names[pitch % 12]) + std::to_string(octave);
+}
+
+void ClipEditorWindow::DrawPianoKeys(ImDrawList* draw_list, ImVec2 origin, float key_width, float total_height) {
+    for (int p = 127; p >= 0; --p) {
+        float y1 = origin.y + (127 - p) * m_note_height;
+        float y2 = y1 + m_note_height;
+
+        uint8_t note_in_oct = p % 12;
+        bool is_black_key = (note_in_oct == 1 || note_in_oct == 3 || note_in_oct == 6 || note_in_oct == 8 || note_in_oct == 10);
+
+        ImU32 bg_color = is_black_key ? IM_COL32(35, 35, 38, 255) : IM_COL32(210, 210, 215, 255);
+        ImU32 text_color = is_black_key ? IM_COL32(180, 180, 180, 255) : IM_COL32(20, 20, 20, 255);
+
+        draw_list->AddRectFilled(ImVec2(origin.x, y1), ImVec2(origin.x + key_width, y2), bg_color);
+        draw_list->AddLine(ImVec2(origin.x, y2), ImVec2(origin.x + key_width, y2), IM_COL32(80, 80, 80, 100));
+
+        if (note_in_oct == 0 || p == 127 || m_note_height >= 16.0f) {
+            std::string label = GetPitchName(static_cast<uint8_t>(p));
+            draw_list->AddText(ImVec2(origin.x + 4.0f, y1 + 1.0f), text_color, label.c_str());
+        }
+    }
+}
+
+void ClipEditorWindow::DrawGridBackground(ImDrawList* draw_list, Model::Clip& clip, ImVec2 origin, ImVec2 grid_size) {
+    const uint32_t ppq = m_app.project.ppq;
+    const float clip_px_width = clip.duration * m_px_per_tick;
+
+    for (int p = 127; p >= 0; --p) {
+        float y = origin.y + (127 - p) * m_note_height;
+        uint8_t note_in_oct = p % 12;
+        bool is_black_key = (note_in_oct == 1 || note_in_oct == 3 || note_in_oct == 6 || note_in_oct == 8 || note_in_oct == 10);
+
+        if (is_black_key) {
+            draw_list->AddRectFilled(ImVec2(origin.x, y), ImVec2(origin.x + grid_size.x, y + m_note_height), IM_COL32(0, 0, 0, 25));
+        }
+        draw_list->AddLine(ImVec2(origin.x, y + m_note_height), ImVec2(origin.x + grid_size.x, y + m_note_height), IM_COL32(255, 255, 255, 12));
+    }
+
+    for (uint64_t tick = 0; tick <= clip.duration; tick += m_grid_snap_ticks) {
+        float x = origin.x + (tick * m_px_per_tick);
+        bool is_bar = (tick % (ppq * 4) == 0);
+        bool is_beat = (tick % ppq == 0);
+
+        ImU32 line_col = is_bar ? IM_COL32(200, 200, 200, 100) : (is_beat ? IM_COL32(150, 150, 150, 50) : IM_COL32(100, 100, 100, 25));
+        draw_list->AddLine(ImVec2(x, origin.y), ImVec2(x, origin.y + grid_size.y), line_col);
+    }
+
+    if (grid_size.x > clip_px_width) {
+        draw_list->AddRectFilled(
+            ImVec2(origin.x + clip_px_width, origin.y),
+            ImVec2(origin.x + grid_size.x, origin.y + grid_size.y),
+            IM_COL32(10, 10, 15, 180)
+        );
+    }
+    draw_list->AddLine(
+        ImVec2(origin.x + clip_px_width, origin.y),
+        ImVec2(origin.x + clip_px_width, origin.y + grid_size.y),
+        IM_COL32(255, 100, 100, 255),
+        2.0f
+    );
+}
+
+void ClipEditorWindow::DrawSelf() {
+    Model::Clip* clip = GetSelectedClip();
+
+    if (!clip) {
+        ImGui::TextDisabled("No clip selected. Click a clip in the timeline view to edit.");
+        return;
+    }
+
+    ImGui::Text("Editing Clip: ");
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", clip->name.c_str());
+
+    ImGui::SameLine(0.0f, 20.0f);
+    ImGui::SetNextItemWidth(100.0f);
+    ImGui::SliderFloat("Zoom H", &m_px_per_tick, 0.005f, 0.1f, "%.3f");
+
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(100.0f);
+    ImGui::SliderFloat("Zoom V", &m_note_height, 8.0f, 28.0f, "%.0f px");
+
+    ImGui::SameLine();
+    uint32_t ppq = m_app.project.ppq;
+    int snap_idx = (m_grid_snap_ticks == ppq / 2) ? 0 : ((m_grid_snap_ticks == ppq / 4) ? 1 : 2);
+    const char* snap_options[] = { "1/8 Note", "1/16 Note", "1/32 Note" };
+    ImGui::SetNextItemWidth(110.0f);
+    if (ImGui::Combo("Snap", &snap_idx, snap_options, IM_ARRAYSIZE(snap_options))) {
+        if (snap_idx == 0) m_grid_snap_ticks = ppq / 2;
+        else if (snap_idx == 1) m_grid_snap_ticks = ppq / 4;
+        else if (snap_idx == 2) m_grid_snap_ticks = ppq / 8;
+    }
+
+    ImGui::Separator();
+
+    constexpr float KEY_WIDTH = 55.0f;
+    const float total_grid_height = 128.0f * m_note_height;
+    const float total_grid_width = std::max(ImGui::GetContentRegionAvail().x - KEY_WIDTH, clip->duration * m_px_per_tick + 200.0f);
+
+    ImGui::BeginChild("PianoRollScrollArea", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
+
+    ImVec2 canvas_origin = ImGui::GetCursorScreenPos();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    DrawPianoKeys(draw_list, canvas_origin, KEY_WIDTH, total_grid_height);
+
+    ImVec2 grid_origin(canvas_origin.x + KEY_WIDTH, canvas_origin.y);
+    ImVec2 grid_size(total_grid_width, total_grid_height);
+
+    // Draw canvas widget and capture hover state even when active/clicked
+    ImGui::SetCursorScreenPos(grid_origin);
+    ImGui::InvisibleButton("PianoRollCanvas", grid_size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+    bool canvas_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+
+    DrawGridBackground(draw_list, *clip, grid_origin, grid_size);
+
+    // Pass canvas_hovered into NoteManager
+    m_note_manager.ProcessAndDrawNotes(
+        m_app,
+        *clip,
+        grid_origin,
+        grid_size,
+        m_px_per_tick,
+        m_note_height,
+        m_grid_snap_ticks,
+        canvas_hovered
+    );
+
+    ImGui::EndChild();
+}
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\NoteManager.cpp 
+================================================== 
+ 
+#include "NoteManager.hpp"
+#include <algorithm>
+#include <cmath>
+
+namespace gsr::gui {
+
+void NoteManager::HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) {
+    ImGuiIO& io = ImGui::GetIO();
+
+    // Toggle Play/Pause on Spacebar (Ignore if editing text)
+    if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space, false)) {
+        app.transport.state = app.transport.state == PlaybackState::Playing ? PlaybackState::Paused : PlaybackState::Playing;
+    }
+
+    // Copy selected notes (Ctrl+C)
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C)) {
+        m_note_clipboard.clear();
+        for (const auto& note : clip.notes) {
+            if (note.selected) {
+                m_note_clipboard.push_back(note);
+            }
+        }
+    }
+
+    // Paste notes at Playhead position (Ctrl+V)
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_V) && !m_note_clipboard.empty()) {
+        int64_t rel_playhead = static_cast<int64_t>(app.transport.current_tick) - static_cast<int64_t>(clip.start_tick);
+        uint64_t paste_base_tick = std::max<int64_t>(0, rel_playhead);
+
+        uint64_t min_clip_tick = m_note_clipboard.front().start_tick;
+        for (const auto& n : m_note_clipboard) {
+            min_clip_tick = std::min(min_clip_tick, n.start_tick);
+        }
+
+        // Deselect current notes before pasting
+        for (auto& n : clip.notes) n.selected = false;
+
+        // Paste relative to playhead tick
+        for (auto note : m_note_clipboard) {
+            note.selected = true;
+            int64_t offset = note.start_tick - min_clip_tick;
+            note.start_tick = std::min(clip.duration - 1, paste_base_tick + offset);
+            clip.notes.push_back(note);
+        }
+    }
+}
+
+void NoteManager::DrawPlayhead(gsr::App& app, const Model::Clip& clip, ImVec2 grid_origin, ImVec2 grid_size, float px_per_tick, ImDrawList* draw_list) {
+    int64_t rel_playhead_tick = static_cast<int64_t>(app.transport.current_tick) - static_cast<int64_t>(clip.start_tick);
+    
+    if (rel_playhead_tick >= 0) {
+        float playhead_x = grid_origin.x + (rel_playhead_tick * px_per_tick);
+        if (playhead_x >= grid_origin.x && playhead_x <= grid_origin.x + grid_size.x) {
+            draw_list->AddLine(
+                ImVec2(playhead_x, grid_origin.y),
+                ImVec2(playhead_x, grid_origin.y + grid_size.y),
+                IM_COL32(255, 75, 75, 255),
+                2.0f
+            );
+        }
+    }
+}
+
+void NoteManager::ProcessAndDrawNotes(
+    gsr::App& app,
+    Model::Clip& clip,
+    ImVec2 grid_origin,
+    ImVec2 grid_size,
+    float px_per_tick,
+    float note_height,
+    uint32_t grid_snap_ticks,
+    bool canvas_hovered
+) {
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImGuiIO& io = ImGui::GetIO();
+    ImVec2 mouse_pos = io.MousePos;
+
+    float clip_px_width = clip.duration * px_per_tick;
+
+    float rel_x = std::max(0.0f, mouse_pos.x - grid_origin.x);
+    float rel_y = std::max(0.0f, mouse_pos.y - grid_origin.y);
+    uint64_t raw_hover_tick = static_cast<uint64_t>(rel_x / px_per_tick);
+    uint64_t snapped_hover_tick = (raw_hover_tick / grid_snap_ticks) * grid_snap_ticks;
+    int hover_pitch = std::clamp(127 - static_cast<int>(rel_y / note_height), 0, 127);
+
+    HandleKeyboardShortcuts(app, clip);
+
+    // Hit Test Notes
+    int hovered_note_idx = -1;
+    bool edge_hovered = false;
+    int note_to_delete = -1;
+
+    for (size_t i = 0; i < clip.notes.size(); ++i) {
+        auto& note = clip.notes[i];
+
+        float nx1 = grid_origin.x + (note.start_tick * px_per_tick);
+        float nx2 = nx1 + (note.duration * px_per_tick);
+        float ny1 = grid_origin.y + (127 - note.pitch) * note_height;
+        float ny2 = ny1 + note_height;
+
+        ImVec2 n_min(nx1, ny1 + 1.0f);
+        ImVec2 n_max(nx2, ny2 - 1.0f);
+
+        ImU32 fill_col = note.selected ? IM_COL32(255, 210, 80, 240) : IM_COL32(230, 150, 40, 220);
+        ImU32 border_col = note.selected ? IM_COL32(255, 255, 200, 255) : IM_COL32(255, 190, 100, 255);
+
+        draw_list->AddRectFilled(n_min, n_max, fill_col, 2.0f);
+        draw_list->AddRect(n_min, n_max, border_col, 2.0f);
+
+        if (mouse_pos.x >= n_min.x && mouse_pos.x <= n_max.x && mouse_pos.y >= n_min.y && mouse_pos.y <= n_max.y) {
+            hovered_note_idx = static_cast<int>(i);
+            if (mouse_pos.x >= n_max.x - 6.0f) {
+                edge_hovered = true;
+            }
+        }
+
+        if (canvas_hovered && hovered_note_idx == static_cast<int>(i) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            note_to_delete = static_cast<int>(i);
+        }
+    }
+
+    if (edge_hovered || m_is_resizing) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+    }
+
+    if (note_to_delete >= 0) {
+        clip.notes.erase(clip.notes.begin() + note_to_delete);
+        return;
+    }
+
+    // 1. Double Click Note Creation
+    if (canvas_hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && hovered_note_idx < 0) {
+        if (rel_x <= clip_px_width) {
+            if (snapped_hover_tick < clip.duration) {
+                Model::Note new_note;
+                new_note.pitch = static_cast<uint8_t>(hover_pitch);
+                new_note.start_tick = snapped_hover_tick;
+                new_note.duration = grid_snap_ticks;
+                new_note.velocity = 100;
+                new_note.selected = true;
+                clip.notes.push_back(new_note);
+            }
+        }
+    }
+    // 2. Empty Space Click (Start Box Selection & Move Playhead to Grid Snap)
+    else if (canvas_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && hovered_note_idx < 0) {
+        app.transport.current_tick = clip.start_tick + snapped_hover_tick;
+        
+        m_is_box_selecting = true;
+        m_box_select_start = mouse_pos;
+
+        if (!io.KeyShift && !io.KeyCtrl) {
+            for (auto& note : clip.notes) note.selected = false;
+        }
+    }
+
+    // 3. Note Select / Drag / Duplicate Handler
+    if (canvas_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && hovered_note_idx >= 0) {
+        m_active_note_idx = hovered_note_idx;
+        m_drag_mouse_start = mouse_pos;
+        m_selected_initial_states.clear();
+
+        // Update Selection
+        if (!io.KeyShift && !io.KeyCtrl && !clip.notes[hovered_note_idx].selected) {
+            for (auto& n : clip.notes) n.selected = false;
+            clip.notes[hovered_note_idx].selected = true;
+        } else if (io.KeyShift || io.KeyCtrl) {
+            clip.notes[hovered_note_idx].selected = !clip.notes[hovered_note_idx].selected;
+        }
+
+        // Duplicate All Selected Notes on Alt + Drag
+        if (io.KeyAlt && !edge_hovered) {
+            std::vector<Model::Note> duplicates;
+            for (auto& n : clip.notes) {
+                if (n.selected) {
+                    n.selected = false;
+                    Model::Note dup = n;
+                    dup.selected = true;
+                    duplicates.push_back(dup);
+                }
+            }
+            for (const auto& dup : duplicates) {
+                clip.notes.push_back(dup);
+            }
+        }
+
+        if (edge_hovered) {
+            m_is_resizing = true;
+        } else {
+            m_is_dragging = true;
+        }
+
+        // Store initial states for all selected notes to sync group transform
+        for (size_t i = 0; i < clip.notes.size(); ++i) {
+            if (clip.notes[i].selected) {
+                m_selected_initial_states.push_back({
+                    i,
+                    clip.notes[i].start_tick,
+                    clip.notes[i].duration,
+                    clip.notes[i].pitch
+                });
+            }
+        }
+    }
+
+    // 4. Box Selection Active State, Scrub Playhead & Note Intersection Test
+    if (m_is_box_selecting && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        // Continuous snapped playhead position update while scrubbing empty grid space
+        app.transport.current_tick = clip.start_tick + snapped_hover_tick;
+
+        ImVec2 box_min(std::min(m_box_select_start.x, mouse_pos.x), std::min(m_box_select_start.y, mouse_pos.y));
+        ImVec2 box_max(std::max(m_box_select_start.x, mouse_pos.x), std::max(m_box_select_start.y, mouse_pos.y));
+
+        draw_list->AddRectFilled(box_min, box_max, IM_COL32(100, 180, 255, 40));
+        draw_list->AddRect(box_min, box_max, IM_COL32(120, 200, 255, 200), 0.0f, 0, 1.5f);
+
+        bool append_mode = io.KeyShift || io.KeyCtrl;
+
+        for (auto& note : clip.notes) {
+            float nx1 = grid_origin.x + (note.start_tick * px_per_tick);
+            float nx2 = nx1 + (note.duration * px_per_tick);
+            float ny1 = grid_origin.y + (127 - note.pitch) * note_height;
+            float ny2 = ny1 + note_height;
+
+            bool intersects = (nx1 < box_max.x && nx2 > box_min.x && ny1 < box_max.y && ny2 > box_min.y);
+            if (append_mode) {
+                if (intersects) note.selected = true;
+            } else {
+                note.selected = intersects;
+            }
+        }
+    }
+
+    // 5. Active Group Drag & Resize
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_selected_initial_states.empty()) {
+        float delta_x = mouse_pos.x - m_drag_mouse_start.x;
+        float delta_y = mouse_pos.y - m_drag_mouse_start.y;
+
+        int64_t delta_ticks = static_cast<int64_t>(delta_x / px_per_tick);
+        int64_t snapped_delta_ticks = (delta_ticks / static_cast<int64_t>(grid_snap_ticks)) * grid_snap_ticks;
+        int delta_pitch = -static_cast<int>(std::round(delta_y / note_height));
+
+        if (m_is_resizing) {
+            // Adjust ends of all selected notes together
+            for (const auto& st : m_selected_initial_states) {
+                if (st.index < clip.notes.size()) {
+                    int64_t new_dur = std::max<int64_t>(grid_snap_ticks, static_cast<int64_t>(st.duration) + snapped_delta_ticks);
+                    clip.notes[st.index].duration = static_cast<uint64_t>(new_dur);
+                }
+            }
+        } else if (m_is_dragging) {
+            // Move all selected notes together, ensuring no note drops below tick 0
+            int64_t min_initial_tick = m_selected_initial_states[0].start_tick;
+            for (const auto& st : m_selected_initial_states) {
+                min_initial_tick = std::min<int64_t>(min_initial_tick, st.start_tick);
+            }
+            int64_t allowed_delta_ticks = std::max(-min_initial_tick, snapped_delta_ticks);
+
+            for (const auto& st : m_selected_initial_states) {
+                if (st.index < clip.notes.size()) {
+                    int64_t target_tick = std::max<int64_t>(0, static_cast<int64_t>(st.start_tick) + allowed_delta_ticks);
+                    int target_pitch = std::clamp<int>(static_cast<int>(st.pitch) + delta_pitch, 0, 127);
+
+                    clip.notes[st.index].start_tick = static_cast<uint64_t>(target_tick);
+                    clip.notes[st.index].pitch = static_cast<uint8_t>(target_pitch);
+                }
+            }
+        }
+    }
+
+    // 6. Release Drag / Box Selection
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+        m_active_note_idx = -1;
+        m_is_resizing = false;
+        m_is_dragging = false;
+        m_is_box_selecting = false;
+        m_selected_initial_states.clear();
+    }
+
+    // Draw Synced Global Playhead on Top
+    DrawPlayhead(app, clip, grid_origin, grid_size, px_per_tick, draw_list);
+}
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\instrument\InstrumentWindow.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "../gui/main/GuiWindow.h"
+#include "App.hpp"
+#include <imgui.h>
+
+namespace gsr::gui {
+
+class InstrumentWindow : public app::GuiWindow {
+public:
+    explicit InstrumentWindow(gsr::App& app);
+    ~InstrumentWindow() = default;
+
+    std::string GetWindowId() override { return "Instrument Inspector"; }
+    void DrawSelf() override;
+
+private:
+    gsr::App& m_app;
+    Model::Track* GetSelectedTrack();
+};
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\instrument\InstrumentWindow.cpp 
+================================================== 
+ 
+#include "InstrumentWindow.hpp"
+#include "FileDialogue.hpp"
+#include <filesystem>
+
+namespace gsr::gui {
+
+InstrumentWindow::InstrumentWindow(gsr::App& app) : m_app(app) {}
+
+Model::Track* InstrumentWindow::GetSelectedTrack() {
+    int track_idx = m_app.view.active_track_index;
+    if (m_app.view.cell_selection.active) {
+        track_idx = m_app.view.cell_selection.track_index;
+    }
+    if (track_idx >= 0 && track_idx < static_cast<int>(m_app.project.tracks.size())) {
+        return &m_app.project.tracks[track_idx];
+    }
+    return nullptr;
+}
+
+void InstrumentWindow::DrawSelf() {
+    Model::Track* track = GetSelectedTrack();
+    if (!track) {
+        ImGui::TextDisabled("No track selected.");
+        return;
+    }
+
+    ImGui::Text("Track: %s", track->name.c_str());
+    if (m_app.view.cell_selection.active) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(Bar %u)", m_app.view.cell_selection.start_bar + 1);
+    }
+    ImGui::Separator();
+
+    // --- Active Instrument Engine Selection ---
+    if (ImGui::CollapsingHeader("Instrument Assignment", ImGuiTreeNodeFlags_DefaultOpen)) {
+        const char* engines[] = { "SoundFont Synthesizer", "Sampler", "VST3 Plugin..." };
+        int current_engine = (track->instrument_type == "Sampler") ? 1 : 
+                             (track->instrument_type == "VST3 Plugin...") ? 2 : 0;
+
+        if (ImGui::Combo("Engine", &current_engine, engines, IM_ARRAYSIZE(engines))) {
+            track->instrument_type = engines[current_engine];
+            track->needs_reload = true;
+        }
+
+        // --- SoundFont Specific UI Controls ---
+        if (track->instrument_type == "SoundFont Synthesizer") {
+            ImGui::Spacing();
+            ImGui::Text("SoundFont (.sf2) File:");
+
+            // Path Display & File Browser Button
+            std::string filename = track->soundfont_path.empty() ? 
+                "No file loaded" : std::filesystem::path(track->soundfont_path).filename().string();
+            
+            ImGui::InputText("##SF2Path", filename.data(), filename.size(), ImGuiInputTextFlags_ReadOnly);
+            ImGui::SameLine();
+            if (ImGui::Button("Browse...##SF2")) {
+                std::string selected = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::OPEN, "sf2");
+                if (!selected.empty() && selected != track->soundfont_path) {
+                    track->soundfont_path = selected;
+                    track->preset_index = 0;
+                    track->needs_reload = true;
+                }
+            }
+
+            // Preset & Gain Tweaks
+            if (ImGui::SliderInt("Preset Index", &track->preset_index, 0, 127)) {
+                track->needs_reload = true;
+            }
+
+            ImGui::SliderFloat("Output Gain", &track->instrument_gain, 0.0f, 2.0f, "%.2fx");
+        }
+    }
+
+    // --- MIDI FX Chain ---
+    if (ImGui::CollapsingHeader("MIDI Effects", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::Button("+ Add MIDI FX")) {
+            track->midi_effects.push_back({"Arpeggiator", true, 0.5f, 0.5f});
+        }
+        for (size_t i = 0; i < track->midi_effects.size(); ++i) {
+            auto& fx = track->midi_effects[i];
+            ImGui::PushID(static_cast<int>(i) + 100);
+            ImGui::Checkbox("##Enable", &fx.enabled);
+            ImGui::SameLine();
+            if (ImGui::TreeNode(fx.name.c_str())) {
+                ImGui::SliderFloat("Rate", &fx.parameter_1, 0.0f, 1.0f);
+                if (ImGui::Button("Delete")) {
+                    track->midi_effects.erase(track->midi_effects.begin() + i);
+                    ImGui::TreePop(); ImGui::PopID(); break;
+                }
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+    }
+
+    // --- Audio FX Chain ---
+    if (ImGui::CollapsingHeader("Audio Effects", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::Button("+ Add Audio FX")) {
+            track->audio_effects.push_back({"Reverb", true, 0.3f, 0.7f});
+        }
+        for (size_t i = 0; i < track->audio_effects.size(); ++i) {
+            auto& fx = track->audio_effects[i];
+            ImGui::PushID(static_cast<int>(i) + 200);
+            ImGui::Checkbox("##Enable", &fx.enabled);
+            ImGui::SameLine();
+            if (ImGui::TreeNode(fx.name.c_str())) {
+                ImGui::SliderFloat("Mix", &fx.parameter_1, 0.0f, 1.0f);
+                if (ImGui::Button("Delete")) {
+                    track->audio_effects.erase(track->audio_effects.begin() + i);
+                    ImGui::TreePop(); ImGui::PopID(); break;
+                }
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+    }
+}
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\timeline\ClipManager.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "App.hpp"
+#include "model/Track.hpp"
+#include <imgui.h>
+
+namespace gsr::gui {
+
+class ClipManager {
+public:
+    ClipManager() = default;
+    ~ClipManager() = default;
+
+    void DrawRuler(gsr::App& app, float ruler_height);
+    void DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t track_index, float row_height);
+
+private:
+    static bool ClipsOverlap(uint64_t start1, uint64_t dur1, uint64_t start2, uint64_t dur2);
+};
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\timeline\TimelineWindow.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "../gui/main/GuiWindow.h"
+#include "App.hpp"
+#include "ClipManager.hpp"
+
+namespace gsr::gui {
+
+class TimelineWindow : public app::GuiWindow {
+public:
+    explicit TimelineWindow(gsr::App& app);
+    ~TimelineWindow() = default;
+
+    std::string GetWindowId() override { return "Timeline"; }
+    void DrawSelf() override;
+
+private:
+    gsr::App& m_app;
+    ClipManager m_clip_manager;
+};
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\timeline\ClipManager.cpp 
+================================================== 
+ 
+#include "ClipManager.hpp"
+#include <algorithm>
+#include <string>
+
+namespace gsr::gui {
+
+bool ClipManager::ClipsOverlap(uint64_t start1, uint64_t dur1, uint64_t start2, uint64_t dur2) {
+    return (start1 < start2 + dur2) && (start1 + dur1 > start2);
+}
+
+void ClipManager::DrawRuler(gsr::App& app, float ruler_height) {
+    const float px_per_tick = app.view.px_per_tick;
+    const uint64_t scroll_tick = app.view.scroll_tick;
+    const uint32_t ppq = app.project.ppq;
+    const uint32_t ticks_per_bar = ppq * 4;
+
+    ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
+    ImVec2 canvas_size(std::max(ImGui::GetContentRegionAvail().x, 50.0f), ruler_height);
+
+    ImGui::InvisibleButton("RulerCanvas", canvas_size, ImGuiButtonFlags_MouseButtonLeft);
+
+    // Playhead Scrubbing on Ruler
+    if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        float rel_mouse_x = ImGui::GetIO().MousePos.x - canvas_pos.x;
+        int64_t target_tick = static_cast<int64_t>(rel_mouse_x / px_per_tick) + scroll_tick;
+        app.transport.current_tick = std::max<int64_t>(0, target_tick);
+    }
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->PushClipRect(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), true);
+
+    draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), IM_COL32(32, 34, 38, 255));
+    draw_list->AddLine(ImVec2(canvas_pos.x, canvas_pos.y + canvas_size.y - 1.0f), ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y - 1.0f), IM_COL32(80, 80, 80, 255));
+
+    int start_bar = static_cast<int>(scroll_tick / ticks_per_bar);
+    int end_bar = start_bar + static_cast<int>(canvas_size.x / (ticks_per_bar * px_per_tick)) + 2;
+
+    for (int b = start_bar; b <= end_bar; ++b) {
+        uint64_t bar_tick = static_cast<uint64_t>(b) * ticks_per_bar;
+        float line_x = canvas_pos.x + static_cast<float>(static_cast<int64_t>(bar_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
+
+        if (line_x >= canvas_pos.x - 20.0f && line_x <= canvas_pos.x + canvas_size.x) {
+            draw_list->AddLine(ImVec2(line_x, canvas_pos.y + 10.0f), ImVec2(line_x, canvas_pos.y + canvas_size.y), IM_COL32(180, 180, 180, 255));
+
+            std::string bar_str = std::to_string(b + 1);
+            if (line_x >= canvas_pos.x) {
+                draw_list->AddText(ImVec2(line_x + 4.0f, canvas_pos.y + 2.0f), IM_COL32(200, 200, 200, 230), bar_str.c_str());
+            }
+
+            for (int beat = 1; beat < 4; ++beat) {
+                float beat_x = line_x + (beat * ppq * px_per_tick);
+                if (beat_x >= canvas_pos.x && beat_x <= canvas_pos.x + canvas_size.x) {
+                    draw_list->AddLine(ImVec2(beat_x, canvas_pos.y + 16.0f), ImVec2(beat_x, canvas_pos.y + canvas_size.y), IM_COL32(100, 100, 100, 255));
+                }
+            }
+        }
+    }
+
+    float playhead_x = canvas_pos.x + static_cast<float>(static_cast<int64_t>(app.transport.current_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
+    if (playhead_x >= canvas_pos.x && playhead_x <= canvas_pos.x + canvas_size.x) {
+        draw_list->AddTriangleFilled(
+            ImVec2(playhead_x - 6.0f, canvas_pos.y),
+            ImVec2(playhead_x + 6.0f, canvas_pos.y),
+            ImVec2(playhead_x, canvas_pos.y + 10.0f),
+            IM_COL32(255, 75, 75, 255)
+        );
+        draw_list->AddLine(
+            ImVec2(playhead_x, canvas_pos.y + 10.0f),
+            ImVec2(playhead_x, canvas_pos.y + canvas_size.y),
+            IM_COL32(255, 75, 75, 255),
+            2.0f
+        );
+    }
+
+    draw_list->PopClipRect();
+}
+
+void ClipManager::DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t track_index, float row_height) {
+    const float px_per_tick = app.view.px_per_tick;
+    const uint64_t scroll_tick = app.view.scroll_tick;
+    const uint32_t ppq = app.project.ppq;
+    const uint32_t ticks_per_bar = ppq * 4;
+
+    ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
+    ImVec2 canvas_size(std::max(ImGui::GetContentRegionAvail().x, 50.0f), row_height);
+
+    ImGui::InvisibleButton("TimelineCanvas", canvas_size, ImGuiButtonFlags_MouseButtonLeft);
+    
+    const bool is_hovered = ImGui::IsItemHovered();
+    const bool is_clicking = ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+
+    ImVec2 mouse_pos = ImGui::GetIO().MousePos;
+    float rel_mouse_x = mouse_pos.x - canvas_pos.x;
+    int64_t hovered_tick = std::max<int64_t>(0, static_cast<int64_t>(rel_mouse_x / px_per_tick) + scroll_tick);
+    uint32_t hovered_bar = static_cast<uint32_t>(hovered_tick / ticks_per_bar);
+
+    auto& sel = app.view.cell_selection;
+
+    // Direct Mouse Click Selection Handler
+    if (is_hovered && (ImGui::IsMouseClicked(ImGuiMouseButton_Left))) {
+        // Clear clip selection across all tracks
+        for (auto& t : app.project.tracks) {
+            for (auto& c : t.clips) c.selected = false;
+        }
+
+        // Always update selection anchor and start_bar to the clicked bar
+        sel.track_index = static_cast<int>(track_index);
+        sel.drag_anchor_bar = hovered_bar;
+        sel.start_bar = hovered_bar;
+        sel.num_bars = 1;
+        sel.active = true;
+        app.view.active_track_index = static_cast<int>(track_index);
+
+        // Check if mouse clicked directly inside a clip
+        for (auto& clip : track.clips) {
+            float c_x1 = canvas_pos.x + static_cast<float>(static_cast<int64_t>(clip.start_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
+            float c_x2 = c_x1 + (clip.duration * px_per_tick);
+
+            if (mouse_pos.x >= c_x1 && mouse_pos.x <= c_x2) {
+                clip.selected = true;
+                break;
+            }
+        }
+    } else if (is_clicking && sel.active && sel.track_index == static_cast<int>(track_index)) {
+        // Multi-bar Selection Drag
+        uint32_t min_bar = std::min(sel.drag_anchor_bar, hovered_bar);
+        uint32_t max_bar = std::max(sel.drag_anchor_bar, hovered_bar);
+        sel.start_bar = min_bar;
+        sel.num_bars = (max_bar - min_bar) + 1;
+    }
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->PushClipRect(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), true);
+
+    // Draw Bar Grid
+    int start_bar = static_cast<int>(scroll_tick / ticks_per_bar);
+    int end_bar = start_bar + static_cast<int>(canvas_size.x / (ticks_per_bar * px_per_tick)) + 2;
+
+    for (int b = start_bar; b <= end_bar; ++b) {
+        uint64_t bar_tick = static_cast<uint64_t>(b) * ticks_per_bar;
+        float line_x = canvas_pos.x + static_cast<float>(static_cast<int64_t>(bar_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
+
+        if (b % 2 == 0) {
+            float next_line_x = line_x + (ticks_per_bar * px_per_tick);
+            draw_list->AddRectFilled(
+                ImVec2(line_x, canvas_pos.y),
+                ImVec2(next_line_x, canvas_pos.y + canvas_size.y),
+                IM_COL32(255, 255, 255, 6)
+            );
+        }
+
+        draw_list->AddLine(
+            ImVec2(line_x, canvas_pos.y),
+            ImVec2(line_x, canvas_pos.y + canvas_size.y),
+            IM_COL32(200, 200, 200, 30),
+            1.0f
+        );
+    }
+
+    // Draw Selected Area Highlight
+    if (sel.active && sel.track_index == static_cast<int>(track_index)) {
+        float sel_x1 = canvas_pos.x + static_cast<float>(static_cast<int64_t>(sel.start_bar * ticks_per_bar) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
+        float sel_x2 = sel_x1 + (sel.num_bars * ticks_per_bar * px_per_tick);
+
+        draw_list->AddRectFilled(
+            ImVec2(std::max(sel_x1, canvas_pos.x), canvas_pos.y),
+            ImVec2(std::min(sel_x2, canvas_pos.x + canvas_size.x), canvas_pos.y + canvas_size.y),
+            IM_COL32(100, 180, 255, 60)
+        );
+        draw_list->AddRect(
+            ImVec2(std::max(sel_x1, canvas_pos.x), canvas_pos.y),
+            ImVec2(std::min(sel_x2, canvas_pos.x + canvas_size.x), canvas_pos.y + canvas_size.y),
+            IM_COL32(120, 200, 255, 200),
+            0.0f, 0, 2.0f
+        );
+    }
+
+    // Draw Track Clips
+    for (const auto& clip : track.clips) {
+        float clip_x1 = canvas_pos.x + static_cast<float>(static_cast<int64_t>(clip.start_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
+        float clip_x2 = clip_x1 + (clip.duration * px_per_tick);
+
+        if (clip_x2 < canvas_pos.x || clip_x1 > canvas_pos.x + canvas_size.x) continue;
+
+        ImU32 fill_color = (clip.type == Model::ClipType::Repeat) ? IM_COL32(160, 90, 180, 200) : IM_COL32(40, 120, 180, 200);
+        ImU32 border_color = clip.selected ? IM_COL32(255, 230, 100, 255) : ((clip.type == Model::ClipType::Repeat) ? IM_COL32(210, 140, 240, 255) : IM_COL32(80, 180, 240, 255));
+
+        draw_list->AddRectFilled(
+            ImVec2(std::max(clip_x1, canvas_pos.x), canvas_pos.y + 2.0f),
+            ImVec2(std::min(clip_x2, canvas_pos.x + canvas_size.x), canvas_pos.y + canvas_size.y - 2.0f),
+            fill_color, 4.0f
+        );
+        draw_list->AddRect(
+            ImVec2(std::max(clip_x1, canvas_pos.x), canvas_pos.y + 2.0f),
+            ImVec2(std::min(clip_x2, canvas_pos.x + canvas_size.x), canvas_pos.y + canvas_size.y - 2.0f),
+            border_color, 4.0f, 0, clip.selected ? 2.5f : 1.5f
+        );
+
+        std::string clip_label = (clip.type == Model::ClipType::Repeat ? "[:||] " : "") + clip.name;
+        if (clip_x1 + 6.0f < canvas_pos.x + canvas_size.x) {
+            draw_list->AddText(ImVec2(std::max(clip_x1 + 6.0f, canvas_pos.x + 4.0f), canvas_pos.y + 4.0f), IM_COL32(255, 255, 255, 230), clip_label.c_str());
+        }
+
+        for (const auto& note : clip.notes) {
+            float n_x1 = clip_x1 + (note.start_tick * px_per_tick);
+            float n_x2 = n_x1 + (note.duration * px_per_tick);
+            float norm_p = static_cast<float>(note.pitch) / 127.0f;
+            float n_y = (canvas_pos.y + canvas_size.y - 8.0f) - norm_p * (canvas_size.y - 20.0f);
+
+            draw_list->AddRectFilled(ImVec2(n_x1, n_y), ImVec2(n_x2, n_y + 3.0f), IM_COL32(255, 220, 100, 220));
+        }
+    }
+
+    // Playhead Drawing
+    float playhead_x = canvas_pos.x + static_cast<float>(static_cast<int64_t>(app.transport.current_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
+    if (playhead_x >= canvas_pos.x && playhead_x <= canvas_pos.x + canvas_size.x) {
+        draw_list->AddLine(ImVec2(playhead_x, canvas_pos.y), ImVec2(playhead_x, canvas_pos.y + canvas_size.y), IM_COL32(255, 75, 75, 255), 2.0f);
+    }
+
+    draw_list->PopClipRect();
+
+    // Context Menu
+    if (ImGui::BeginPopupContextItem("TimelineCellContextMenu")) {
+        uint64_t target_start = sel.start_bar * ticks_per_bar;
+        uint64_t target_dur = sel.num_bars * ticks_per_bar;
+
+        std::vector<size_t> overlapping_indices;
+        int clip_to_split = -1;
+
+        for (size_t c_idx = 0; c_idx < track.clips.size(); ++c_idx) {
+            const auto& clip = track.clips[c_idx];
+            if (ClipsOverlap(target_start, target_dur, clip.start_tick, clip.duration)) {
+                overlapping_indices.push_back(c_idx);
+            }
+            // Check if selected bar split point lies within an existing clip
+            if (target_start > clip.start_tick && target_start < clip.start_tick + clip.duration) {
+                clip_to_split = static_cast<int>(c_idx);
+            }
+        }
+
+        bool has_overlap = !overlapping_indices.empty();
+
+        // Split Option
+        if (clip_to_split >= 0) {
+            if (ImGui::MenuItem(("Split Clip at Bar " + std::to_string(sel.start_bar + 1)).c_str())) {
+                auto& orig = track.clips[clip_to_split];
+                uint64_t split_tick = target_start;
+                uint64_t first_dur = split_tick - orig.start_tick;
+                uint64_t second_dur = orig.duration - first_dur;
+
+                Model::Clip second_clip = orig;
+                second_clip.start_tick = split_tick;
+                second_clip.duration = second_dur;
+                second_clip.notes.clear();
+
+                // Move notes belonging to second clip
+                auto it = orig.notes.begin();
+                while (it != orig.notes.end()) {
+                    if (it->start_tick >= first_dur) {
+                        Model::Note n = *it;
+                        n.start_tick -= first_dur;
+                        second_clip.notes.push_back(n);
+                        it = orig.notes.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+
+                orig.duration = first_dur;
+                track.clips.push_back(second_clip);
+            }
+            ImGui::Separator();
+        }
+
+        if (has_overlap) ImGui::BeginDisabled();
+        if (ImGui::MenuItem(("Add Clip (" + std::to_string(sel.num_bars) + " Bars)").c_str())) {
+            Model::Clip new_clip;
+            new_clip.start_tick = target_start;
+            new_clip.duration = target_dur;
+            new_clip.name = "Clip " + std::to_string(track.clips.size() + 1);
+            new_clip.type = Model::ClipType::Standard;
+            track.clips.push_back(new_clip);
+        }
+
+        bool can_repeat = (target_start >= target_dur);
+        if (!can_repeat) ImGui::BeginDisabled();
+        if (ImGui::MenuItem(("Add Repeat Clip (" + std::to_string(sel.num_bars) + " Bars)").c_str())) {
+            Model::Clip rep_clip;
+            rep_clip.start_tick = target_start;
+            rep_clip.duration = target_dur;
+            rep_clip.name = "Repeat " + std::to_string(track.clips.size() + 1);
+            rep_clip.type = Model::ClipType::Repeat;
+            track.clips.push_back(rep_clip);
+        }
+        if (!can_repeat) ImGui::EndDisabled();
+        if (has_overlap) ImGui::EndDisabled();
+
+        ImGui::Separator();
+
+        if (has_overlap && overlapping_indices.size() == 1) {
+            if (ImGui::MenuItem("Copy Clip")) {
+                app.view.clip_clipboard = track.clips[overlapping_indices[0]];
+                app.view.has_copied_clip = true;
+            }
+        }
+
+        bool can_paste = app.view.has_copied_clip && !has_overlap;
+        if (!can_paste) ImGui::BeginDisabled();
+        if (ImGui::MenuItem("Paste Clip")) {
+            Model::Clip pasted_clip = app.view.clip_clipboard;
+            pasted_clip.start_tick = target_start;
+            track.clips.push_back(pasted_clip);
+        }
+        if (!can_paste) ImGui::EndDisabled();
+
+        ImGui::Separator();
+
+        if (!has_overlap) ImGui::BeginDisabled();
+        if (ImGui::MenuItem("Delete Selected Clip(s)")) {
+            std::sort(overlapping_indices.begin(), overlapping_indices.end(), std::greater<size_t>());
+            for (size_t idx : overlapping_indices) {
+                track.clips.erase(track.clips.begin() + idx);
+            }
+        }
+        if (!has_overlap) ImGui::EndDisabled();
+
+        ImGui::EndPopup();
+    }
+}
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\timeline\TimelineWindow.cpp 
+================================================== 
+ 
+#include "TimelineWindow.hpp"
+#include <imgui.h>
+#include <string>
+
+namespace gsr::gui {
+
+TimelineWindow::TimelineWindow(gsr::App& app)
+    : m_app(app) {}
+
+void TimelineWindow::DrawSelf() {
+    // --- Spacebar Play / Pause Shortcut Logic ---
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Space, false)) {
+        if (m_app.transport.state == PlaybackState::Playing) {
+            m_app.transport.state = PlaybackState::Paused;
+        } else {
+            // Jump playhead to current bar selection start if active
+            if (m_app.view.cell_selection.active) {
+                uint32_t ticks_per_bar = m_app.project.ppq * 4;
+                m_app.transport.current_tick = static_cast<uint64_t>(m_app.view.cell_selection.start_bar) * ticks_per_bar;
+            }
+            m_app.transport.state = PlaybackState::Playing;
+        }
+    }
+
+    // Top Controls Bar
+    if (ImGui::Button("+ Add Track")) {
+        Model::Track new_track;
+        new_track.name = "Track " + std::to_string(m_app.project.tracks.size() + 1);
+        m_app.project.tracks.push_back(new_track);
+        m_app.view.active_track_index = static_cast<int>(m_app.project.tracks.size() - 1);
+    }
+
+    ImGui::SameLine();
+    ImGui::TextDisabled("| Total Tracks: %zu", m_app.project.tracks.size());
+
+    ImGui::SameLine(0.0f, 20.0f);
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::SliderFloat("Zoom", &m_app.view.px_per_tick, 0.01f, 0.2f, "%.3f px/t");
+
+    ImGui::SameLine();
+    int scroll_bar_pos = static_cast<int>(m_app.view.scroll_tick / m_app.project.ppq);
+    ImGui::SetNextItemWidth(150.0f);
+    if (ImGui::SliderInt("Scroll (Beats)", &scroll_bar_pos, 0, 500)) {
+        m_app.view.scroll_tick = static_cast<uint64_t>(scroll_bar_pos) * m_app.project.ppq;
+    }
+
+    ImGui::Separator();
+
+    constexpr ImGuiTableFlags table_flags = ImGuiTableFlags_BordersInnerH | 
+                                           ImGuiTableFlags_RowBg | 
+                                           ImGuiTableFlags_Resizable;
+
+    if (ImGui::BeginTable("TimelineTracks", 5, table_flags)) {
+        ImGui::TableSetupColumn("Track Name", ImGuiTableColumnFlags_WidthFixed, 140.0f);
+        ImGui::TableSetupColumn("M/S", ImGuiTableColumnFlags_WidthFixed, 75.0f);
+        ImGui::TableSetupColumn("Volume", ImGuiTableColumnFlags_WidthFixed, 90.0f);
+        ImGui::TableSetupColumn("Pan", ImGuiTableColumnFlags_WidthFixed, 90.0f);
+        ImGui::TableSetupColumn("Timeline / Clip View", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableHeadersRow();
+
+        // --- Ruler Row ---
+        ImGui::TableNextRow(ImGuiTableRowFlags_Headers, 28.0f);
+        ImGui::TableSetColumnIndex(0);
+        ImGui::TextDisabled("Ruler / Loop");
+        ImGui::TableSetColumnIndex(4);
+        m_clip_manager.DrawRuler(m_app, 28.0f);
+
+        constexpr float ROW_HEIGHT = 48.0f;
+
+        // --- Tracks View ---
+        for (size_t i = 0; i < m_app.project.tracks.size(); ++i) {
+            auto& track = m_app.project.tracks[i];
+            ImGui::PushID(static_cast<int>(i));
+
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, ROW_HEIGHT);
+
+            // 1. Track Name & Row Selection
+            ImGui::TableSetColumnIndex(0);
+            const bool is_active = (m_app.view.active_track_index == static_cast<int>(i));
+            if (ImGui::Selectable(track.name.c_str(), is_active, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap)) {
+                m_app.view.active_track_index = static_cast<int>(i);
+            }
+
+            // 2. Mute / Solo
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Checkbox("M", &track.muted);
+            ImGui::SameLine();
+            ImGui::Checkbox("S", &track.solo);
+
+            // 3. Volume
+            ImGui::TableSetColumnIndex(2);
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::SliderFloat("##Vol", &track.volume, 0.0f, 1.0f, "%.2f");
+
+            // 4. Pan
+            ImGui::TableSetColumnIndex(3);
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::SliderFloat("##Pan", &track.pan, -1.0f, 1.0f, "%.2f");
+
+            // 5. Clip View (Delegated to ClipManager)
+            ImGui::TableSetColumnIndex(4);
+            m_clip_manager.DrawTrackTimeline(m_app, track, i, ROW_HEIGHT);
+
+            ImGui::PopID();
+        }
+
+        ImGui::EndTable();
+    }
+}
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\midi\MidiInterface.hpp 
+================================================== 
+ 
+#pragma once
+
+#include <cstdint>
+#include <vector>
+#include <mutex>
+
+namespace gsr::midi {
+
+enum class MidiMessageType : uint8_t {
+    NoteOff               = 0x80,
+    NoteOn                = 0x90,
+    PolyphonicAftertouch = 0xA0,
+    ControlChange         = 0xB0,
+    ProgramChange         = 0xC0,
+    ChannelAftertouch     = 0xD0,
+    PitchBend             = 0xE0,
+    System                = 0xF0
+};
+
+struct MidiMessage {
+    MidiMessageType type{MidiMessageType::NoteOn};
+    uint8_t channel{0};       // 0 - 15
+    uint8_t data1{0};         // Note number (0-127) or CC controller ID
+    uint8_t data2{0};         // Velocity (0-127) or CC value
+    uint32_t frame_offset{0}; // Sub-buffer sample offset for sample-accurate timing
+
+    // Helpers to create raw 3-byte MIDI commands
+    [[nodiscard]] uint8_t GetStatusByte() const {
+        return static_cast<uint8_t>(type) | (channel & 0x0F);
+    }
+};
+
+class MidiInterface {
+public:
+    MidiInterface() = default;
+    ~MidiInterface() = default;
+
+    // Direct API methods for note & transport playback triggers
+    void SendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint32_t frame_offset = 0);
+    void SendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity = 0, uint32_t frame_offset = 0);
+    void SendControlChange(uint8_t channel, uint8_t controller, uint8_t value, uint32_t frame_offset = 0);
+    void SendPitchBend(uint8_t channel, uint16_t value, uint32_t frame_offset = 0);
+    
+    // Panic / Reset controls
+    void SendAllNotesOff(uint8_t channel);
+    void SendAllNotesOffAllChannels();
+
+    // Raw message queuing
+    void PushMessage(const MidiMessage& msg);
+
+    // Buffer processing methods (used by Audio Synthesizer / Audio Thread)
+    void FlushPendingMessages(std::vector<MidiMessage>& out_buffer);
+    void ClearQueue();
+
+    // Interface State Queries
+    [[nodiscard]] size_t GetPendingMessageCount() const;
+
+private:
+    std::vector<MidiMessage> m_message_queue;
+    mutable std::mutex m_queue_mutex;
+};
+
+} // namespace gsr::midi 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\midi\MidiInterface.cpp 
+================================================== 
+ 
+#include "MidiInterface.hpp"
+#include <algorithm>
+
+namespace gsr::midi {
+
+void MidiInterface::SendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint32_t frame_offset) {
+    MidiMessage msg;
+    msg.type = (velocity > 0) ? MidiMessageType::NoteOn : MidiMessageType::NoteOff;
+    msg.channel = std::clamp<uint8_t>(channel, 0, 15);
+    msg.data1 = std::clamp<uint8_t>(note, 0, 127);
+    msg.data2 = std::clamp<uint8_t>(velocity, 0, 127);
+    msg.frame_offset = frame_offset;
+
+    PushMessage(msg);
+}
+
+void MidiInterface::SendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint32_t frame_offset) {
+    MidiMessage msg;
+    msg.type = MidiMessageType::NoteOff;
+    msg.channel = std::clamp<uint8_t>(channel, 0, 15);
+    msg.data1 = std::clamp<uint8_t>(note, 0, 127);
+    msg.data2 = std::clamp<uint8_t>(velocity, 0, 127);
+    msg.frame_offset = frame_offset;
+
+    PushMessage(msg);
+}
+
+void MidiInterface::SendControlChange(uint8_t channel, uint8_t controller, uint8_t value, uint32_t frame_offset) {
+    MidiMessage msg;
+    msg.type = MidiMessageType::ControlChange;
+    msg.channel = std::clamp<uint8_t>(channel, 0, 15);
+    msg.data1 = std::clamp<uint8_t>(controller, 0, 127);
+    msg.data2 = std::clamp<uint8_t>(value, 0, 127);
+    msg.frame_offset = frame_offset;
+
+    PushMessage(msg);
+}
+
+void MidiInterface::SendPitchBend(uint8_t channel, uint16_t value, uint32_t frame_offset) {
+    uint16_t clamped_val = std::clamp<uint16_t>(value, 0, 16383);
+    
+    MidiMessage msg;
+    msg.type = MidiMessageType::PitchBend;
+    msg.channel = std::clamp<uint8_t>(channel, 0, 15);
+    msg.data1 = static_cast<uint8_t>(clamped_val & 0x7F);        // LSB
+    msg.data2 = static_cast<uint8_t>((clamped_val >> 7) & 0x7F); // MSB
+    msg.frame_offset = frame_offset;
+
+    PushMessage(msg);
+}
+
+void MidiInterface::SendAllNotesOff(uint8_t channel) {
+    // Standard MIDI CC 123: All Notes Off
+    SendControlChange(channel, 123, 0);
+}
+
+void MidiInterface::SendAllNotesOffAllChannels() {
+    for (uint8_t ch = 0; ch < 16; ++ch) {
+        SendAllNotesOff(ch);
+    }
+}
+
+void MidiInterface::PushMessage(const MidiMessage& msg) {
+    std::lock_guard<std::mutex> lock(m_queue_mutex);
+    m_message_queue.push_back(msg);
+}
+
+void MidiInterface::FlushPendingMessages(std::vector<MidiMessage>& out_buffer) {
+    std::lock_guard<std::mutex> lock(m_queue_mutex);
+    if (m_message_queue.empty()) {
+        return;
+    }
+
+    out_buffer.insert(out_buffer.end(), m_message_queue.begin(), m_message_queue.end());
+    m_message_queue.clear();
+}
+
+void MidiInterface::ClearQueue() {
+    std::lock_guard<std::mutex> lock(m_queue_mutex);
+    m_message_queue.clear();
+}
+
+size_t MidiInterface::GetPendingMessageCount() const {
+    std::lock_guard<std::mutex> lock(m_queue_mutex);
+    return m_message_queue.size();
+}
+
+} // namespace gsr::midi 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\model\Project.hpp 
+================================================== 
+ 
+#pragma once
+#include <string>
+#include <vector>
+#include <cstdint>
+#include "Track.hpp"
+
+namespace Model {
+
+enum class KeyType { Major, Minor };
+
+struct KeySignature {
+    int8_t accidentals{0}; // -7 (Flats) to +7 (Sharps)
+    KeyType type{KeyType::Major};
+};
+
+struct KeySignatureChange {
+    uint32_t bar_index{0}; // Measure index where key changes
+    KeySignature key;
+};
+
+struct TimeSignature {
+    uint8_t numerator{4};
+    uint8_t denominator{4};
+};
+
+struct TimeSignatureChange {
+    uint32_t bar_index{0}; // Measure index where meter changes
+    TimeSignature time_sig;
+};
+
+struct TempoPoint {
+    uint64_t tick{0};   // Position in ticks for smooth automation
+    double bpm{120.0};  // Beats per minute
+};
+
+struct Project {
+    std::string title{"Untitled Project"};
+    uint32_t ppq{960};  // Resolution: Pulses Per Quarter note
+
+    // Master timelines (must remain sorted chronologically)
+    std::vector<TempoPoint> tempo_map{ {0, 120.0} };
+    std::vector<TimeSignatureChange> time_sig_map{ {0, {4, 4}} };
+    std::vector<KeySignatureChange> key_sig_map{ {0, {0, KeyType::Major}} };
+
+    std::vector<Track> tracks;
+};
+
+} // namespace Model 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\model\Track.hpp 
+================================================== 
+ 
+#pragma once
+#include <string>
+#include <vector>
+#include <cstdint>
+
+namespace Model {
+
+enum class ClipType {
+    Standard,
+    Repeat // Replays notes from the previous X bars
+};
+
+struct Note {
+    uint8_t pitch{60};
+    uint8_t velocity{100};
+    uint64_t start_tick{0}; // Relative offset from clip start tick
+    uint64_t duration{960};
+    bool selected{false};
+};
+
+struct Clip {
+    std::string name{"New Clip"};
+    uint64_t start_tick{0};
+    uint64_t duration{3840}; // Ticks (4 bars default @ 960 PPQ)
+    std::vector<Note> notes;
+    bool selected{false};
+    ClipType type{ClipType::Standard};
+};
+
+// Add to src/app/model/Track.hpp
+struct Effect {
+    std::string name{"Default Effect"};
+    bool enabled{true};
+    float parameter_1{0.5f};
+    float parameter_2{0.5f};
+};
+
+struct Track {
+    std::string name{"Track 1"};
+    uint8_t midi_channel{0};
+    bool muted{false};
+    bool solo{false};
+    float volume{1.0f};
+    float pan{0.0f};
+
+    // Instrument Settings
+    std::string instrument_type{"SoundFont Synthesizer"};
+    std::string soundfont_path{"assets/soundfonts/default.sf2"};
+    int preset_index{0};
+    float instrument_gain{1.0f};
+    bool needs_reload{false}; // Signal flag for audio thread to rebuild instrument
+
+    std::vector<Effect> midi_effects;
+    std::vector<Effect> audio_effects;
+    std::vector<Clip> clips;
+    std::vector<Note> notes;
+};
+
+} // namespace Model 
+ 

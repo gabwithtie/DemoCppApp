@@ -8,20 +8,6 @@ TimelineWindow::TimelineWindow(gsr::App& app)
     : m_app(app) {}
 
 void TimelineWindow::DrawSelf() {
-    // --- Spacebar Play / Pause Shortcut Logic ---
-    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Space, false)) {
-        if (m_app.transport.state == PlaybackState::Playing) {
-            m_app.transport.state = PlaybackState::Paused;
-        } else {
-            // Jump playhead to current bar selection start if active
-            if (m_app.view.cell_selection.active) {
-                uint32_t ticks_per_bar = m_app.project.ppq * 4;
-                m_app.transport.current_tick = static_cast<uint64_t>(m_app.view.cell_selection.start_bar) * ticks_per_bar;
-            }
-            m_app.transport.state = PlaybackState::Playing;
-        }
-    }
-
     // Top Controls Bar
     if (ImGui::Button("+ Add Track")) {
         Model::Track new_track;
