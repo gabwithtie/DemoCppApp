@@ -1,5 +1,7 @@
 #include "GuiWindow.h"
 
+#include <imgui.h>
+
 namespace app {
 	bool GuiWindow::ext_Begin() {
 

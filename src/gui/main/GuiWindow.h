@@ -5,8 +5,6 @@
 #include <typeinfo>
 #include <string>
 
-#include <imgui.h>
-
 namespace app {
 	class GuiWindow : public GuiElement {
 	protected:

@@ -4,11 +4,10 @@
 
 #include <string>
 
-#include <imgui.h>
 #include <list>
 #include <vector>
 
-#include "gui/features/menuBar/MenuBarExtension.h"
+#include "../gui/features/menuBar/MenuBarExtension.h"
 
 namespace app {
 	class GuiWindow;

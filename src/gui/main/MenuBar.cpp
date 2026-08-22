@@ -1,9 +1,8 @@
 #include "MenuBar.h"
-#include "MenuBar.h"
-#include "MenuBar.h"
 
+#include <imgui.h>
 
-#include "gui/features/directory/DirectoryBrowser.h"
+#include "../gui/features/directory/DirectoryBrowser.h"
 
 namespace app {
 	MenuBar* MenuBar::instance = nullptr;

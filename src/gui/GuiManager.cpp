@@ -1,4 +1,6 @@
 #include "GuiManager.h"
+#include "main/GuiWindow.h"
+
 
 #include <imgui.h>
 #include <imgui_internal.h>
