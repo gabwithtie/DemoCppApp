@@ -49,10 +49,10 @@ namespace app {
         draw_list->AddRectFilled(canvas_p0, canvas_p1, IM_COL32(20, 22, 26, 255));
 
         // Lines
-        for (const auto& line : m_sim.GetLines()) {
+        for (const auto& line : m_sim.GetMapManager().GetLines()) {
             for (size_t i = 0; i + 1 < line.station_ids.size(); ++i) {
-                const auto* stA = m_sim.FindStation(line.station_ids[i]);
-                const auto* stB = m_sim.FindStation(line.station_ids[i + 1]);
+                const auto* stA = m_sim.GetMapManager().FindStation(line.station_ids[i]);
+                const auto* stB = m_sim.GetMapManager().FindStation(line.station_ids[i + 1]);
                 if (stA && stB) {
                     draw_list->AddLine(WorldToScreen(stA->position, canvas_p0), WorldToScreen(stB->position, canvas_p0), line.color, std::max(2.0f, 5.0f * m_zoom));
                 }
@@ -61,7 +61,7 @@ namespace app {
 
         // Stations Selection
         const std::string& selected_st_id = m_sim.GetSelectedStationId();
-        for (const auto& st : m_sim.GetStations()) {
+        for (const auto& st : m_sim.GetMapManager().GetStations()) {
             ImVec2 p = WorldToScreen(st.position, canvas_p0);
             float r = std::max(4.0f, 8.0f * m_zoom);
 
@@ -84,8 +84,8 @@ namespace app {
 
         // Dynamic Trains Selection
         const std::string& selected_train_id = m_sim.GetSelectedTrainId();
-        for (const auto& train : m_sim.GetTrains()) {
-            gbe::Vector2 world_pos = m_sim.GetTrainWorldPosition(train);
+        for (const auto& train : m_sim.GetTrainManager().GetTrains()) {
+            gbe::Vector2 world_pos = m_sim.GetTrainManager().GetTrainWorldPosition(train);
             ImVec2 p = WorldToScreen(world_pos, canvas_p0);
             float r = std::max(4.0f, 8.0f * m_zoom);
 
@@ -100,8 +100,8 @@ namespace app {
             // Active Route Overlay
             if (train.active_path.size() >= 2) {
                 for (size_t i = 0; i + 1 < train.active_path.size(); ++i) {
-                    const auto* stA = m_sim.FindStation(train.active_path[i]);
-                    const auto* stB = m_sim.FindStation(train.active_path[i + 1]);
+                    const auto* stA = m_sim.GetMapManager().FindStation(train.active_path[i]);
+                    const auto* stB = m_sim.GetMapManager().FindStation(train.active_path[i + 1]);
                     if (stA && stB) {
                         draw_list->AddLine(WorldToScreen(stA->position, canvas_p0), WorldToScreen(stB->position, canvas_p0), IM_COL32(255, 255, 0, 100), std::max(3.0f, 8.0f * m_zoom));
                     }

@@ -1,7 +1,9 @@
 #pragma once
 
-#include "gui/main/GuiWindow.h"
+#include "../gui/main/GuiWindow.h"
 #include "../GameSimulation.hpp"
+
+#include <imgui.h>
 
 namespace app {
 

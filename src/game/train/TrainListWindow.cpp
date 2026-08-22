@@ -10,7 +10,7 @@ namespace app {
 
     void TrainListWindow::DrawSelf() {
         const std::string& selected_id = m_sim.GetSelectedTrainId();
-        Train* train = m_sim.FindTrainMutable(selected_id);
+        Train* train = m_sim.GetTrainManager().FindTrainMutable(selected_id);
 
         if (!train) {
             ImGui::TextDisabled("Click any train on the Terminal Map to inspect.");
@@ -20,8 +20,8 @@ namespace app {
         ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "Train: %s", train->id.c_str());
         ImGui::Text("Base Speed: %.0f km/h", train->speed);
 
-        const Station* target_st = m_sim.FindStation(train->target_station_id);
-        const Station* current_st = m_sim.FindStation(train->current_station_id);
+        const Station* target_st = m_sim.GetMapManager().FindStation(train->target_station_id);
+        const Station* current_st = m_sim.GetMapManager().FindStation(train->current_station_id);
 
         if (target_st) {
             ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "En Route To: %s", target_st->name.c_str());
@@ -47,12 +47,12 @@ namespace app {
 
         std::string combo_preview = target_st ? target_st->name : "Dispatch to Station...";
         if (ImGui::BeginCombo("Set Destination", combo_preview.c_str())) {
-            for (const auto& st : m_sim.GetStations()) {
+            for (const auto& st : m_sim.GetMapManager().GetStations()) {
                 if (st.id == train->current_station_id) continue;
 
                 bool is_selected = (st.id == train->target_station_id);
                 if (ImGui::Selectable(st.name.c_str(), is_selected)) {
-                    m_sim.SetTrainDestination(train->id, st.id);
+                    m_sim.GetTrainManager().SetTrainDestination(train->id, st.id);
                 }
 
                 if (is_selected) ImGui::SetItemDefaultFocus();
@@ -168,7 +168,7 @@ namespace app {
                 ImGui::Separator();
 
                 if (ImGui::Button("Confirm Purchase", ImVec2(140, 0))) {
-                    m_sim.BuyCargoFromStation(
+                    m_sim.GetMarketManager().BuyCargoFromStation(
                         m_pending_purchase.station_id,
                         m_pending_purchase.train_id,
                         m_pending_purchase.carriage_index,

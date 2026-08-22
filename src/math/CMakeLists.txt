@@ -18,5 +18,6 @@ target_include_directories(${CUR_TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 #COMPILE DEFINITIONS SETUP
 target_compile_definitions(${CUR_TARGET_NAME} PUBLIC GLM_ENABLE_EXPERIMENTAL)
 target_link_libraries(${CUR_TARGET_NAME} PUBLIC glm::glm)
+target_include_directories(${CUR_TARGET_NAME} PUBLIC ${glm_SOURCE_DIR})
 
 target_include_directories(${CUR_TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

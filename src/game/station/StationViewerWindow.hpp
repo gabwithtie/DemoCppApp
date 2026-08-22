@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/main/GuiWindow.h"
+#include "../gui/main/GuiWindow.h"
 #include "GameSimulation.hpp"
 
 namespace app {
