@@ -11,6 +11,6 @@ add_library(${LIBRARY_NAME} STATIC
 #WINDOW CORE LIBRARY
 target_link_libraries(${LIBRARY_NAME} PRIVATE SDL2-static)
 #RENDERER LIBRARY
-target_link_libraries(${LIBRARY_NAME} PRIVATE glew::glew)
+target_link_libraries(${LIBRARY_NAME} PRIVATE glew)
 #GUI LIBRARY
-target_link_libraries(${LIBRARY_NAME} PRIVATE imgui::imgui)
+target_link_libraries(${LIBRARY_NAME} PRIVATE imgui)
