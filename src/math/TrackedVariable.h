@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Math/gbe_math.h"
+#include "../Math/gbe_math.h"
 #include <functional>
 #include <vector>
 

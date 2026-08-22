@@ -2,17 +2,24 @@
 #include "gui/GuiManager.h"
 
 //Application Specific Includes
-
+#include "app/App.hpp"
 
 int main(int argc, char** argv) {
 
     // Initialize Window + GUI
     app::Window window = app::Window("GabApp", 1280, 720);
 
+    //MAIN STUFF
+
+
     //GUI
     app::GuiManager::WindowAssignmentOverride windowoverride = {
-		.showns = {
-		}
+
+        .showns = {
+            {
+                //&something
+            }
+        }
     };
     app::GuiManager guimanager(windowoverride);
 
