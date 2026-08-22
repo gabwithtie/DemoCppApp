@@ -1,18 +1,13 @@
-set(CURRENT_CMAKE_LIB app_game)
+#SETUP
+set(CUR_TARGET_SUBLIBNAME game)
+set(CUR_TARGET_NAME gbe_app_${CUR_TARGET_SUBLIBNAME})
 
-#SUBDIRECTORY LOADING
-add_library(${CURRENT_CMAKE_LIB} STATIC
+set(${CUR_TARGET_NAME}_src
 	"test.cpp"
 )
 
+add_library(${CUR_TARGET_NAME} STATIC ${${CUR_TARGET_NAME}_src})
+add_library(gbe::app::${CUR_TARGET_SUBLIBNAME} ALIAS ${CUR_TARGET_NAME})
+target_include_directories(${CUR_TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(${CURRENT_CMAKE_LIB} PRIVATE imgui)
-
-target_link_libraries(${CURRENT_CMAKE_LIB} PRIVATE nfd)
-
-target_compile_definitions(${CURRENT_CMAKE_LIB} PUBLIC GLM_ENABLE_EXPERIMENTAL)
-target_link_libraries(${CURRENT_CMAKE_LIB} PUBLIC glm)
-
-target_link_libraries(${CURRENT_CMAKE_LIB} PRIVATE glaze)
-
-target_include_directories(${CURRENT_CMAKE_LIB} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(${CUR_TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

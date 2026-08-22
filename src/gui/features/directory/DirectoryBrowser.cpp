@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#include <imgui.h>
+
 namespace app {
 
     DirectoryBrowser* DirectoryBrowser::s_instance = nullptr;

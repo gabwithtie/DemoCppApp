@@ -84,6 +84,23 @@ FetchContent_Declare(glm
 #==============POPULATE & MAKE AVAILABLE================#
 FetchContent_MakeAvailable(SDL2 glm glaze imgui nfd stb glew)
 
+#===================FURTHER SETUP==================#
+add_library(imgui STATIC
+        ${imgui_SOURCE_DIR}/imgui.cpp
+        ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp
+        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+        ${imgui_SOURCE_DIR}/imgui_demo.cpp
+        # Include the GFX backend requested in vcpkg.json
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+    )
+    target_include_directories(imgui PUBLIC
+        ${imgui_SOURCE_DIR} #for other libraries that depend on imgui
+    )
+    target_link_libraries(imgui PUBLIC SDL2::SDL2-static)
+    add_library(imgui::imgui ALIAS imgui)
+
 #=========================# INIT CODE #=========================#
 add_executable(${PROJECT_NAME} "src/main.cpp")
 
@@ -99,20 +116,19 @@ add_library(app_internal_libs INTERFACE)
 # Modern way to propagate includes globally across an interface group:
 target_include_directories(app_internal_libs INTERFACE 
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ext"
 )
 
 add_subdirectory("src/gui")
-target_link_libraries(app_internal_libs INTERFACE app_gui)
+target_link_libraries(app_internal_libs INTERFACE gbe::app::gui)
 
 add_subdirectory("src/window")
-target_link_libraries(app_internal_libs INTERFACE app_window)
+target_link_libraries(app_internal_libs INTERFACE gbe::app::window)
 
 add_subdirectory("src/math")
-target_link_libraries(app_internal_libs INTERFACE app_math)
+target_link_libraries(app_internal_libs INTERFACE gbe::app::math)
 
 add_subdirectory("src/game")
-target_link_libraries(app_internal_libs INTERFACE app_game)
+target_link_libraries(app_internal_libs INTERFACE gbe::app::game)
 
 add_subdirectory("src/tools")
 target_link_libraries(app_internal_libs INTERFACE gbe::tools)
@@ -125,9 +141,9 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
     $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
     $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
-    glew
+    libglew_static
     imgui
-    glaze
+    glaze::glaze
 )
 
 #=========================# FINAL COPY COMMANDS #=========================#
