@@ -4,6 +4,12 @@ set(CUR_TARGET_NAME gbe_app_${CUR_TARGET_SUBLIBNAME})
 
 set(${CUR_TARGET_NAME}_src
 	"App.cpp"
+
+	gui/timeline/TimelineWindow.cpp
+	gui/timeline/ClipManager.cpp
+
+	gui/clip/ClipEditorWindow.cpp
+	gui/clip/NoteManager.cpp
 )
 
 add_library(${CUR_TARGET_NAME} STATIC ${${CUR_TARGET_NAME}_src})
@@ -15,3 +21,4 @@ target_include_directories(${CUR_TARGET_NAME} PRIVATE ${imgui_SOURCE_DIR})
 
 target_link_libraries(${CUR_TARGET_NAME} PUBLIC gbe::app::math)
 target_link_libraries(${CUR_TARGET_NAME} PUBLIC gbe::app::gui)
+target_link_libraries(${CUR_TARGET_NAME} PUBLIC gbe::tools)

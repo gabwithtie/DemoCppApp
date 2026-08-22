@@ -1,43 +1,62 @@
 ﻿#include "window/Window.h"
 #include "gui/GuiManager.h"
 
-//Application Specific Includes
+// Application Core
 #include "app/App.hpp"
 
-int main(int argc, char** argv) {
+// Application GUI Extensions
+#include "gui/MenuBarExtension.hpp"
+#include "gui/timeline/TimelineWindow.hpp"
+#include "gui/clip/ClipEditorWindow.hpp"
 
-    // Initialize Window + GUI
+#include <imgui.h>
+
+int main(int argc, char** argv) {
+    // 1. Initialize Native Window
     app::Window window = app::Window("GabApp", 1280, 720);
 
-    //MAIN STUFF
+    // 2. Initialize Core App Lifecycle & State
+    gsr::App app;
+    if (!app.init()) {
+        return -1;
+    }
 
+    // 3. Instantiate GUI Windows
+    gsr::gui::TimelineWindow timelineWindow(app);
+    gsr::gui::ClipEditorWindow clipEditorWindow(app);
+    gsr::MenuBarExtension menuBarExtension;
 
-    //GUI
+    // 4. Configure Layout Assignments via Designated Initializers
     app::GuiManager::WindowAssignmentOverride windowoverride = {
-
         .showns = {
             {
-                //&something
+                &timelineWindow
+            },
+            {
+                &clipEditorWindow
             }
         }
     };
     app::GuiManager guimanager(windowoverride);
 
-    //GAME SPECIFIC PRE-MAIN
+    guimanager.GetMenuBar().AddMenu(&menuBarExtension);
 
-
-    //MAIN
-    bool done = false;
-    while (!done) {
+    // 5. Main Execution Loop
+    while (!window.GetShouldQuit() && app.is_running) {
         window.InitFrame();
 
-        if (window.GetShouldQuit())
-            break;
+        // Evaluate transport timing & app calculations
+        const float delta_time = ImGui::GetIO().DeltaTime;
+        app.process_input();
+        app.update(delta_time);
 
+        // Render ImGui dockspace and active windows
         guimanager.Draw();
 
         window.CommitFrame();
     }
 
+    // 6. Cleanup
+    app.shutdown();
     return 0;
 }

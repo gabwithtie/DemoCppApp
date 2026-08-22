@@ -31,6 +31,8 @@ namespace app {
 		WindowAssignmentOverride assignmentOverride;
 
 	public:
+		MenuBar& GetMenuBar() { return menuBar; }
+
 		GuiManager(WindowAssignmentOverride = {});
 		void Draw();
 	};
