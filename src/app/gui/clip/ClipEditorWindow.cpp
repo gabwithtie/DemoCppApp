@@ -1,3 +1,4 @@
+// ClipEditorWindow.cpp
 #include "ClipEditorWindow.hpp"
 #include <algorithm>
 #include <cmath>
@@ -5,14 +6,11 @@
 
 namespace gsr::gui {
 
-ClipEditorWindow::ClipEditorWindow(gsr::App& app)
-    : m_app(app) {}
+ClipEditorWindow::ClipEditorWindow(gsr::App& app) : m_app(app) {}
 
 Model::Clip* ClipEditorWindow::GetSelectedClip() {
     int trk_idx = m_app.view.active_track_index;
-    if (trk_idx < 0 || trk_idx >= static_cast<int>(m_app.project.tracks.size())) {
-        return nullptr;
-    }
+    if (trk_idx < 0 || trk_idx >= static_cast<int>(m_app.project.tracks.size())) return nullptr;
 
     auto& active_track = m_app.project.tracks[trk_idx];
     for (auto& clip : active_track.clips) {
@@ -24,20 +22,6 @@ Model::Clip* ClipEditorWindow::GetSelectedClip() {
             if (clip.selected) return &clip;
         }
     }
-
-    const auto& sel = m_app.view.cell_selection;
-    if (sel.active && sel.track_index == trk_idx) {
-        uint32_t ticks_per_bar = m_app.project.ppq * 4;
-        uint64_t sel_start = sel.start_bar * ticks_per_bar;
-        uint64_t sel_dur = sel.num_bars * ticks_per_bar;
-
-        for (auto& clip : active_track.clips) {
-            if ((sel_start < clip.start_tick + clip.duration) && (sel_start + sel_dur > clip.start_tick)) {
-                return &clip;
-            }
-        }
-    }
-
     return nullptr;
 }
 
@@ -107,6 +91,21 @@ void ClipEditorWindow::DrawGridBackground(ImDrawList* draw_list, Model::Clip& cl
     );
 }
 
+void ClipEditorWindow::DrawPlayhead(ImDrawList* draw_list, const Model::Clip& clip, ImVec2 grid_origin, ImVec2 grid_size) {
+    int64_t rel_playhead_tick = static_cast<int64_t>(m_app.transport.current_tick) - static_cast<int64_t>(clip.start_tick);
+    if (rel_playhead_tick >= 0) {
+        float playhead_x = grid_origin.x + (rel_playhead_tick * m_px_per_tick);
+        if (playhead_x >= grid_origin.x && playhead_x <= grid_origin.x + grid_size.x) {
+            draw_list->AddLine(
+                ImVec2(playhead_x, grid_origin.y),
+                ImVec2(playhead_x, grid_origin.y + grid_size.y),
+                IM_COL32(255, 75, 75, 255),
+                2.0f
+            );
+        }
+    }
+}
+
 void ClipEditorWindow::DrawSelf() {
     Model::Clip* clip = GetSelectedClip();
 
@@ -138,30 +137,31 @@ void ClipEditorWindow::DrawSelf() {
         else if (snap_idx == 2) m_grid_snap_ticks = ppq / 8;
     }
 
-    // Add to toolbar in ClipEditorWindow::DrawSelf()
-    int mode_idx = static_cast<int>(m_note_manager.m_edit_mode);
+    // Edit Mode Combo
+    ImGui::SameLine();
+    int mode_idx = static_cast<int>(m_edit_mode);
     const char* modes[] = { "Select Mode", "Paint Mode" };
     ImGui::SetNextItemWidth(110.0f);
     if (ImGui::Combo("Tool", &mode_idx, modes, IM_ARRAYSIZE(modes))) {
-        m_note_manager.m_edit_mode = static_cast<NoteManager::EditMode>(mode_idx);
+        m_edit_mode = static_cast<PianoRollEditMode>(mode_idx);
     }
 
-    if (m_note_manager.m_edit_mode == NoteManager::EditMode::Paint) {
+    if (m_edit_mode == PianoRollEditMode::Paint) {
         ImGui::SameLine();
-        int target_idx = static_cast<int>(m_note_manager.m_paint_target);
+        int target_idx = static_cast<int>(m_paint_interaction.target);
         const char* targets[] = { "Velocity", "Aftertouch" };
         ImGui::SetNextItemWidth(100.0f);
         if (ImGui::Combo("Target", &target_idx, targets, IM_ARRAYSIZE(targets))) {
-            m_note_manager.m_paint_target = static_cast<NoteManager::PaintTarget>(target_idx);
+            m_paint_interaction.target = static_cast<PaintTarget>(target_idx);
         }
 
         ImGui::SameLine();
         ImGui::SetNextItemWidth(90.0f);
-        ImGui::SliderFloat("Radius", &m_note_manager.m_brush_radius, 5.0f, 100.0f, "%.0f px");
+        ImGui::SliderFloat("Radius", &m_paint_interaction.brush_radius, 5.0f, 100.0f, "%.0f px");
 
         ImGui::SameLine();
         ImGui::SetNextItemWidth(90.0f);
-        ImGui::SliderFloat("Value", &m_note_manager.m_brush_strength, 0.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("Value", &m_paint_interaction.brush_strength, 0.0f, 1.0f, "%.2f");
     }
 
     ImGui::Separator();
@@ -174,30 +174,76 @@ void ClipEditorWindow::DrawSelf() {
 
     ImVec2 canvas_origin = ImGui::GetCursorScreenPos();
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImGuiIO& io = ImGui::GetIO();
+    ImVec2 mouse_pos = io.MousePos;
 
     DrawPianoKeys(draw_list, canvas_origin, KEY_WIDTH, total_grid_height);
 
     ImVec2 grid_origin(canvas_origin.x + KEY_WIDTH, canvas_origin.y);
     ImVec2 grid_size(total_grid_width, total_grid_height);
 
-    // Draw canvas widget and capture hover state even when active/clicked
     ImGui::SetCursorScreenPos(grid_origin);
     ImGui::InvisibleButton("PianoRollCanvas", grid_size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
     bool canvas_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
 
+    // Zoom & Pan Wheel Controls
+    if (canvas_hovered) {
+        if (io.KeyShift && io.MouseWheel != 0.0f) {
+            float zoom_factor = (io.MouseWheel > 0.0f) ? 1.05f : 0.95f;
+            m_px_per_tick = std::clamp(m_px_per_tick * zoom_factor, 0.005f, 0.2f);
+        }
+        if (io.KeyAlt && io.MouseDelta.x != 0.0f) {
+            ImGui::SetScrollX(ImGui::GetScrollX() - io.MouseDelta.x);
+        }
+        io.MouseWheel = 0.0f;
+        io.MouseWheelH = 0.0f;
+    }
+
     DrawGridBackground(draw_list, *clip, grid_origin, grid_size);
 
-    // Pass canvas_hovered into NoteManager
-    m_note_manager.ProcessAndDrawNotes(
-        m_app,
-        *clip,
-        grid_origin,
-        grid_size,
-        m_px_per_tick,
-        m_note_height,
-        m_grid_snap_ticks,
-        canvas_hovered
-    );
+    // Draw Notes with Segment-based Transparency
+    int hovered_note_idx = -1;
+    bool edge_hovered = false;
+
+    for (size_t i = 0; i < clip->notes.size(); ++i) {
+        auto& note = clip->notes[i];
+        NotePaintInteraction::EnsureNoteSegments(note, NotePaintInteraction::SEGMENT_TICK_RES);
+
+        float nx1 = grid_origin.x + (note.start_tick * m_px_per_tick);
+        float nx2 = nx1 + (note.duration * m_px_per_tick);
+        float ny1 = grid_origin.y + (127 - note.pitch) * m_note_height;
+        float ny2 = ny1 + m_note_height;
+
+        ImVec2 n_min(nx1, ny1 + 1.0f);
+        ImVec2 n_max(nx2, ny2 - 1.0f);
+
+        float val_norm = note.paint_segments[0];
+        int alpha = static_cast<int>(std::clamp(val_norm * 230.0f + 25.0f, 25.0f, 255.0f));
+
+        ImU32 fill_col = note.selected ? IM_COL32(255, 210, 80, alpha) : IM_COL32(230, 150, 40, alpha);
+        ImU32 border_col = note.selected ? IM_COL32(255, 255, 200, 255) : IM_COL32(255, 190, 100, alpha);
+
+        draw_list->AddRectFilled(n_min, n_max, fill_col, 2.0f);
+        draw_list->AddRect(n_min, n_max, border_col, 2.0f);
+
+        if (mouse_pos.x >= n_min.x && mouse_pos.x <= n_max.x && mouse_pos.y >= n_min.y && mouse_pos.y <= n_max.y) {
+            hovered_note_idx = static_cast<int>(i);
+            if (mouse_pos.x >= n_max.x - 6.0f) edge_hovered = true;
+        }
+    }
+
+    // Dispatch Interactions to Active Mode Class
+    if (m_edit_mode == PianoRollEditMode::Paint) {
+        m_paint_interaction.ProcessPaint(
+            m_app, *clip, mouse_pos, grid_origin, m_px_per_tick, m_note_height, canvas_hovered, draw_list
+        );
+    } else {
+        m_select_interaction.ProcessSelect(
+            m_app, *clip, mouse_pos, grid_origin, m_px_per_tick, m_note_height, m_grid_snap_ticks, canvas_hovered, hovered_note_idx, edge_hovered
+        );
+    }
+
+    DrawPlayhead(draw_list, *clip, grid_origin, grid_size);
 
     ImGui::EndChild();
 }

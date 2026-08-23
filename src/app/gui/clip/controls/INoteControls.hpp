@@ -1,6 +1,8 @@
 #pragma once
 
 #include "model/Track.hpp"
+#include <vector>
+#include <cstdint>
 
 namespace gsr {
 class App;
@@ -8,7 +10,13 @@ class App;
 
 namespace gsr::gui {
 
-class NoteManager;
+// Lightweight context object aggregating frame dependencies
+struct NoteEditorContext {
+    gsr::App& app;
+    Model::Clip& clip;
+    std::vector<Model::Note>& clipboard;
+    uint32_t grid_snap_ticks;
+};
 
 template <typename T>
 struct ModalSession {
@@ -16,22 +24,20 @@ struct ModalSession {
     bool just_started = false;
     T data{};
 
-    // Call each frame. Handles press, active session, and automatic cleanup on release.
     bool Begin(bool is_held) {
         just_started = false;
         if (is_held) {
             if (!active) {
                 active = true;
                 just_started = true;
-                data = T{}; // Reset to clean state on start
+                data = T{};
             }
         } else if (active) {
-            Cancel(); // Auto-cleanup when key is released
+            Cancel();
         }
         return active;
     }
 
-    // Aborts active session immediately if conditions aren't met
     void Cancel() {
         active = false;
         data = T{};
@@ -40,18 +46,13 @@ struct ModalSession {
 
 class INoteControls {
 public:
-    explicit INoteControls(NoteManager& note_manager)
-        : m_note_manager(&note_manager) {}
-
     virtual ~INoteControls() = default;
 
-    virtual void HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) = 0;
+    // Process keyboard shortcuts for this control module
+    virtual void HandleKeyboardShortcuts(NoteEditorContext& ctx) = 0;
     
-    // Optional context menu items rendered when right-clicking the canvas/notes
-    virtual void DrawContextMenu(gsr::App& app, Model::Clip& clip) {}
-
-protected:
-    NoteManager* m_note_manager{nullptr};
+    // Optional context menu items rendered on right-click
+    virtual void DrawContextMenu(NoteEditorContext& ctx) {}
 };
 
 } // namespace gsr::gui

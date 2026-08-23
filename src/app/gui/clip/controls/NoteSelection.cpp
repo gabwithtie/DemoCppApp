@@ -1,5 +1,7 @@
+// NoteSelection.cpp
 #include "NoteSelection.hpp"
-#include "gui/clip/NoteManager.hpp"
+#include "App.hpp"
+#include <imgui.h>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -7,8 +9,11 @@
 
 namespace gsr::gui {
 
-void NoteSelection::HandleKeyboardShortcuts(gsr::App& /*app*/, Model::Clip& clip) {
+void NoteSelection::HandleKeyboardShortcuts(NoteEditorContext& ctx) {
     ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureKeyboard) return;
+
+    auto& clip = ctx.clip;
 
     // Select All (Ctrl + A)
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_A)) {
@@ -18,12 +23,11 @@ void NoteSelection::HandleKeyboardShortcuts(gsr::App& /*app*/, Model::Clip& clip
         return;
     }
 
-    // --- 0. HOTKEY GUARD ---
+    // --- HOTKEY GUARD ---
     // Ignore selection controls if other modifiers (Ctrl, Alt, Super) are held
     if (io.KeyCtrl || io.KeyAlt || io.KeySuper) return;
 
-    // Ignore Shift + Arrow selection if ANY letter or number key is held down 
-    // (e.g. Shift + S + Arrow, Shift + T + Arrow, Shift + G + Arrow)
+    // Ignore Shift + Arrow selection if ANY letter or number key is held down
     for (int k = ImGuiKey_A; k <= ImGuiKey_Z; ++k) {
         if (ImGui::IsKeyDown(static_cast<ImGuiKey>(k))) return;
     }
@@ -58,8 +62,8 @@ void NoteSelection::HandleKeyboardShortcuts(gsr::App& /*app*/, Model::Clip& clip
         return;
     }
 
-    // 2. Map coordinates into Grid-Normalized 2D Space (X = Grid Units, Y = Semitones)
-    constexpr uint64_t TICKS_PER_GRID = 480; // Standard grid tick resolution
+    // 2. Map coordinates into Grid-Normalized 2D Space
+    constexpr uint64_t TICKS_PER_GRID = 480;
     auto GetX = [](const Model::Note* n) -> double {
         return static_cast<double>(n->start_tick) / static_cast<double>(TICKS_PER_GRID);
     };
@@ -67,7 +71,6 @@ void NoteSelection::HandleKeyboardShortcuts(gsr::App& /*app*/, Model::Clip& clip
         return static_cast<double>(n->pitch);
     };
 
-    // Calculate current selection bounding box & centroid
     double min_x = std::numeric_limits<double>::max();
     double max_x = -std::numeric_limits<double>::max();
     double min_y = std::numeric_limits<double>::max();
@@ -87,13 +90,11 @@ void NoteSelection::HandleKeyboardShortcuts(gsr::App& /*app*/, Model::Clip& clip
     double center_x = sum_x / selected.size();
     double center_y = sum_y / selected.size();
 
-    // Hysteresis margin (0.15 grid steps) for time-slice matching
     constexpr double SLICE_EPSILON = 0.15;
-
     Model::Note* best_note = nullptr;
     double min_distance = std::numeric_limits<double>::max();
 
-    // 3. Weighted Directional Euclidean Search
+    // 3. Weighted Directional Search
     for (auto& note : clip.notes) {
         double nx = GetX(&note);
         double ny = GetY(&note);
@@ -104,7 +105,7 @@ void NoteSelection::HandleKeyboardShortcuts(gsr::App& /*app*/, Model::Clip& clip
         if (up) {
             if (ny > max_y + 0.01) {
                 valid_candidate = true;
-                dx = (nx - center_x) * 2.5; // Heavily penalize horizontal drift
+                dx = (nx - center_x) * 2.5;
                 dy = ny - max_y;
             }
         } else if (down) {
@@ -138,16 +139,14 @@ void NoteSelection::HandleKeyboardShortcuts(gsr::App& /*app*/, Model::Clip& clip
 
     if (!best_note) return;
 
-    // 4. Determine target notes (Shift Range Expansion vs. Single Select)
-    std::vector<Model::Note*> to_select;
-    to_select.push_back(best_note);
+    // 4. Target note expansion logic
+    std::vector<Model::Note*> to_select{ best_note };
 
     if (is_shift) {
         double target_x = GetX(best_note);
         double target_y = GetY(best_note);
 
         if (left || right) {
-            // Horizontal expansion: Select target slice notes that strictly match the pitch of any selected note
             for (auto& note : clip.notes) {
                 if (&note == best_note) continue;
                 double nx = GetX(&note);
@@ -161,13 +160,10 @@ void NoteSelection::HandleKeyboardShortcuts(gsr::App& /*app*/, Model::Clip& clip
                             break;
                         }
                     }
-                    if (matches_pitch) {
-                        to_select.push_back(&note);
-                    }
+                    if (matches_pitch) to_select.push_back(&note);
                 }
             }
         } else if (up || down) {
-            // Vertical expansion: Select notes at target pitch bounded strictly by selection's horizontal footprint
             for (auto& note : clip.notes) {
                 if (&note == best_note) continue;
                 double nx = GetX(&note);

@@ -9,7 +9,8 @@ set(${CUR_TARGET_NAME}_src
 	gui/timeline/ClipManager.cpp
 	
 	gui/clip/ClipEditorWindow.cpp
-	gui/clip/NoteManager.cpp
+	gui/clip/NotePaintInteraction.cpp
+	gui/clip/NoteSelectInteraction.cpp
 	
 	gui/clip/controls/CtrlControls.cpp
 	gui/clip/controls/NoteEditingControls.cpp

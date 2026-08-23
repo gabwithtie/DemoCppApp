@@ -1,3 +1,4 @@
+// NoteChordControls.cpp
 #include "NoteChordControls.hpp"
 #include "App.hpp"
 #include <imgui.h>
@@ -5,13 +6,13 @@
 
 namespace gsr::gui {
 
-void NoteChordControls::BuildChords(gsr::App& app, Model::Clip& clip, const std::vector<int>& semitone_offsets) {
+void NoteChordControls::BuildChords(NoteEditorContext& ctx, const std::vector<int>& semitone_offsets) {
+    auto& clip = ctx.clip;
     bool has_selection = std::any_of(clip.notes.begin(), clip.notes.end(), [](const auto& n) { return n.selected; });
     if (!has_selection) return;
 
-    app.SaveUndoPoint();
+    ctx.app.SaveUndoPoint();
 
-    // Copy selected notes to avoid vector invalidation when adding new notes
     std::vector<Model::Note> selected_roots;
     for (const auto& note : clip.notes) {
         if (note.selected) {
@@ -32,44 +33,39 @@ void NoteChordControls::BuildChords(gsr::App& app, Model::Clip& clip, const std:
     }
 }
 
-void NoteChordControls::DrawContextMenu(gsr::App& app, Model::Clip& clip) {
-    bool has_selection = std::any_of(clip.notes.begin(), clip.notes.end(), [](const auto& n) { return n.selected; });
+void NoteChordControls::DrawContextMenu(NoteEditorContext& ctx) {
+    bool has_selection = std::any_of(ctx.clip.notes.begin(), ctx.clip.notes.end(), [](const auto& n) { return n.selected; });
 
     if (ImGui::BeginMenu("Build Chord", has_selection)) {
-
-        // --- Atonal / Neutral ---
         if (ImGui::BeginMenu("Atonal")) {
-            if (ImGui::MenuItem("5 / Power")) BuildChords(app, clip, {7});
-            if (ImGui::MenuItem("Sus 2"))     BuildChords(app, clip, {2, 7});
-            if (ImGui::MenuItem("Sus 4"))     BuildChords(app, clip, {5, 7});
+            if (ImGui::MenuItem("5 / Power")) BuildChords(ctx, {7});
+            if (ImGui::MenuItem("Sus 2"))     BuildChords(ctx, {2, 7});
+            if (ImGui::MenuItem("Sus 4"))     BuildChords(ctx, {5, 7});
             ImGui::EndMenu();
         }
 
-        // --- Major ---
         if (ImGui::BeginMenu("Major")) {
-            if (ImGui::MenuItem("Normal (Triad)")) BuildChords(app, clip, {4, 7});
-            if (ImGui::MenuItem("7 (Maj7)"))        BuildChords(app, clip, {4, 7, 11});
-            if (ImGui::MenuItem("9 (Maj9)"))        BuildChords(app, clip, {4, 7, 11, 14});
-            if (ImGui::MenuItem("11 (Maj11)"))      BuildChords(app, clip, {4, 7, 11, 14, 17});
-            if (ImGui::MenuItem("13 (Maj13)"))      BuildChords(app, clip, {4, 7, 11, 14, 17, 21});
+            if (ImGui::MenuItem("Normal (Triad)")) BuildChords(ctx, {4, 7});
+            if (ImGui::MenuItem("7 (Maj7)"))        BuildChords(ctx, {4, 7, 11});
+            if (ImGui::MenuItem("9 (Maj9)"))        BuildChords(ctx, {4, 7, 11, 14});
+            if (ImGui::MenuItem("11 (Maj11)"))      BuildChords(ctx, {4, 7, 11, 14, 17});
+            if (ImGui::MenuItem("13 (Maj13)"))      BuildChords(ctx, {4, 7, 11, 14, 17, 21});
             ImGui::EndMenu();
         }
 
-        // --- Minor ---
         if (ImGui::BeginMenu("Minor")) {
-            if (ImGui::MenuItem("Normal (Triad)")) BuildChords(app, clip, {3, 7});
-            if (ImGui::MenuItem("7 (m7)"))          BuildChords(app, clip, {3, 7, 10});
-            if (ImGui::MenuItem("9 (m9)"))          BuildChords(app, clip, {3, 7, 10, 14});
-            if (ImGui::MenuItem("11 (m11)"))        BuildChords(app, clip, {3, 7, 10, 14, 17});
-            if (ImGui::MenuItem("13 (m13)"))        BuildChords(app, clip, {3, 7, 10, 14, 17, 21});
+            if (ImGui::MenuItem("Normal (Triad)")) BuildChords(ctx, {3, 7});
+            if (ImGui::MenuItem("7 (m7)"))          BuildChords(ctx, {3, 7, 10});
+            if (ImGui::MenuItem("9 (m9)"))          BuildChords(ctx, {3, 7, 10, 14});
+            if (ImGui::MenuItem("11 (m11)"))        BuildChords(ctx, {3, 7, 10, 14, 17});
+            if (ImGui::MenuItem("13 (m13)"))        BuildChords(ctx, {3, 7, 10, 14, 17, 21});
             ImGui::EndMenu();
         }
 
-        // --- Other ---
         if (ImGui::BeginMenu("Other")) {
-            if (ImGui::MenuItem("Dim (Triad)"))     BuildChords(app, clip, {3, 6});
-            if (ImGui::MenuItem("Half Dim (m7b5)")) BuildChords(app, clip, {3, 6, 10});
-            if (ImGui::MenuItem("Aug (Triad)"))      BuildChords(app, clip, {4, 8});
+            if (ImGui::MenuItem("Dim (Triad)"))     BuildChords(ctx, {3, 6});
+            if (ImGui::MenuItem("Half Dim (m7b5)")) BuildChords(ctx, {3, 6, 10});
+            if (ImGui::MenuItem("Aug (Triad)"))      BuildChords(ctx, {4, 8});
             ImGui::EndMenu();
         }
 

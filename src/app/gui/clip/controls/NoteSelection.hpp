@@ -1,3 +1,4 @@
+// NoteSelection.hpp
 #pragma once
 
 #include "INoteControls.hpp"
@@ -6,9 +7,9 @@ namespace gsr::gui {
 
 class NoteSelection : public INoteControls {
 public:
-    using INoteControls::INoteControls;
+    NoteSelection() = default;
 
-    void HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) override;
+    void HandleKeyboardShortcuts(NoteEditorContext& ctx) override;
 };
 
 } // namespace gsr::gui

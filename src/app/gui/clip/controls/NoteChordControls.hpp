@@ -1,3 +1,4 @@
+// NoteChordControls.hpp
 #pragma once
 
 #include "INoteControls.hpp"
@@ -7,13 +8,13 @@ namespace gsr::gui {
 
 class NoteChordControls : public INoteControls {
 public:
-    using INoteControls::INoteControls;
+    NoteChordControls() = default;
 
-    void HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) override {}
-    void DrawContextMenu(gsr::App& app, Model::Clip& clip) override;
+    void HandleKeyboardShortcuts(NoteEditorContext& ctx) override {}
+    void DrawContextMenu(NoteEditorContext& ctx) override;
 
 private:
-    void BuildChords(gsr::App& app, Model::Clip& clip, const std::vector<int>& semitone_offsets);
+    void BuildChords(NoteEditorContext& ctx, const std::vector<int>& semitone_offsets);
 };
 
 } // namespace gsr::gui

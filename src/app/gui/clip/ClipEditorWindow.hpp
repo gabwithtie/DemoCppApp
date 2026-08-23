@@ -1,12 +1,16 @@
+// ClipEditorWindow.hpp
 #pragma once
 
 #include "../gui/main/GuiWindow.h"
 #include "App.hpp"
-#include "NoteManager.hpp"
+#include "NoteSelectInteraction.hpp"
+#include "NotePaintInteraction.hpp"
 #include "model/Track.hpp"
 #include <imgui.h>
 
 namespace gsr::gui {
+
+enum class PianoRollEditMode { Select, Paint };
 
 class ClipEditorWindow : public app::GuiWindow {
 public:
@@ -18,7 +22,11 @@ public:
 
 private:
     gsr::App& m_app;
-    NoteManager m_note_manager;
+    
+    // Mode Interaction Handlers
+    PianoRollEditMode m_edit_mode = PianoRollEditMode::Select;
+    NoteSelectInteraction m_select_interaction;
+    NotePaintInteraction m_paint_interaction;
 
     float m_note_height = 14.0f;
     float m_px_per_tick = 0.04f;
@@ -28,6 +36,7 @@ private:
     static std::string GetPitchName(uint8_t pitch);
     void DrawPianoKeys(ImDrawList* draw_list, ImVec2 origin, float key_width, float total_height);
     void DrawGridBackground(ImDrawList* draw_list, Model::Clip& clip, ImVec2 origin, ImVec2 grid_size);
+    void DrawPlayhead(ImDrawList* draw_list, const Model::Clip& clip, ImVec2 grid_origin, ImVec2 grid_size);
 };
 
 } // namespace gsr::gui
