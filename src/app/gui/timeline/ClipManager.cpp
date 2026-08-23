@@ -19,10 +19,28 @@ void ClipManager::DrawRuler(gsr::App& app, float ruler_height) {
 
     ImGui::InvisibleButton("RulerCanvas", canvas_size, ImGuiButtonFlags_MouseButtonLeft);
 
+    ImGuiIO& io = ImGui::GetIO();
+    const bool is_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+
+    // Zoom & Horizontal Pan Controls
+    if (is_hovered) {
+        if (io.KeyShift && io.MouseWheel != 0.0f) {
+            float zoom_factor = (io.MouseWheel > 0.0f) ? 1.05f : 0.95f;
+            app.view.px_per_tick = std::clamp(app.view.px_per_tick * zoom_factor, 0.005f, 0.2f);
+            io.MouseWheel = 0.0f;
+            io.MouseWheelH = 0.0f;
+        }
+        if (io.KeyAlt && io.MouseDelta.x != 0.0f) {
+            int64_t delta_ticks = static_cast<int64_t>(io.MouseDelta.x / app.view.px_per_tick);
+            int64_t new_scroll = static_cast<int64_t>(app.view.scroll_tick) - delta_ticks;
+            app.view.scroll_tick = static_cast<uint64_t>(std::max<int64_t>(0, new_scroll));
+        }
+    }
+
     // Playhead Scrubbing on Ruler
-    if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        float rel_mouse_x = ImGui::GetIO().MousePos.x - canvas_pos.x;
-        int64_t target_tick = static_cast<int64_t>(rel_mouse_x / px_per_tick) + scroll_tick;
+    if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !io.KeyAlt) {
+        float rel_mouse_x = io.MousePos.x - canvas_pos.x;
+        int64_t target_tick = static_cast<int64_t>(rel_mouse_x / app.view.px_per_tick) + app.view.scroll_tick;
         app.transport.current_tick = std::max<int64_t>(0, target_tick);
     }
 
@@ -32,12 +50,12 @@ void ClipManager::DrawRuler(gsr::App& app, float ruler_height) {
     draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), IM_COL32(32, 34, 38, 255));
     draw_list->AddLine(ImVec2(canvas_pos.x, canvas_pos.y + canvas_size.y - 1.0f), ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y - 1.0f), IM_COL32(80, 80, 80, 255));
 
-    int start_bar = static_cast<int>(scroll_tick / ticks_per_bar);
-    int end_bar = start_bar + static_cast<int>(canvas_size.x / (ticks_per_bar * px_per_tick)) + 2;
+    int start_bar = static_cast<int>(app.view.scroll_tick / ticks_per_bar);
+    int end_bar = start_bar + static_cast<int>(canvas_size.x / (ticks_per_bar * app.view.px_per_tick)) + 2;
 
     for (int b = start_bar; b <= end_bar; ++b) {
         uint64_t bar_tick = static_cast<uint64_t>(b) * ticks_per_bar;
-        float line_x = canvas_pos.x + static_cast<float>(static_cast<int64_t>(bar_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
+        float line_x = canvas_pos.x + static_cast<float>(static_cast<int64_t>(bar_tick) - static_cast<int64_t>(app.view.scroll_tick)) * app.view.px_per_tick;
 
         if (line_x >= canvas_pos.x - 20.0f && line_x <= canvas_pos.x + canvas_size.x) {
             draw_list->AddLine(ImVec2(line_x, canvas_pos.y + 10.0f), ImVec2(line_x, canvas_pos.y + canvas_size.y), IM_COL32(180, 180, 180, 255));
@@ -48,7 +66,7 @@ void ClipManager::DrawRuler(gsr::App& app, float ruler_height) {
             }
 
             for (int beat = 1; beat < 4; ++beat) {
-                float beat_x = line_x + (beat * ppq * px_per_tick);
+                float beat_x = line_x + (beat * ppq * app.view.px_per_tick);
                 if (beat_x >= canvas_pos.x && beat_x <= canvas_pos.x + canvas_size.x) {
                     draw_list->AddLine(ImVec2(beat_x, canvas_pos.y + 16.0f), ImVec2(beat_x, canvas_pos.y + canvas_size.y), IM_COL32(100, 100, 100, 255));
                 }
@@ -56,7 +74,7 @@ void ClipManager::DrawRuler(gsr::App& app, float ruler_height) {
         }
     }
 
-    float playhead_x = canvas_pos.x + static_cast<float>(static_cast<int64_t>(app.transport.current_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
+    float playhead_x = canvas_pos.x + static_cast<float>(static_cast<int64_t>(app.transport.current_tick) - static_cast<int64_t>(app.view.scroll_tick)) * app.view.px_per_tick;
     if (playhead_x >= canvas_pos.x && playhead_x <= canvas_pos.x + canvas_size.x) {
         draw_list->AddTriangleFilled(
             ImVec2(playhead_x - 6.0f, canvas_pos.y),
@@ -76,8 +94,6 @@ void ClipManager::DrawRuler(gsr::App& app, float ruler_height) {
 }
 
 void ClipManager::DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t track_index, float row_height) {
-    const float px_per_tick = app.view.px_per_tick;
-    const uint64_t scroll_tick = app.view.scroll_tick;
     const uint32_t ppq = app.project.ppq;
     const uint32_t ticks_per_bar = ppq * 4;
 
@@ -86,24 +102,41 @@ void ClipManager::DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t t
 
     ImGui::InvisibleButton("TimelineCanvas", canvas_size, ImGuiButtonFlags_MouseButtonLeft);
     
-    const bool is_hovered = ImGui::IsItemHovered();
+    ImGuiIO& io = ImGui::GetIO();
+    const bool is_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
     const bool is_clicking = ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left);
 
-    ImVec2 mouse_pos = ImGui::GetIO().MousePos;
+    // Zoom & Horizontal Pan Controls
+    if (is_hovered) {
+        if (io.KeyShift && io.MouseWheel != 0.0f) {
+            float zoom_factor = (io.MouseWheel > 0.0f) ? 1.05f : 0.95f;
+            app.view.px_per_tick = std::clamp(app.view.px_per_tick * zoom_factor, 0.005f, 0.2f);
+            io.MouseWheel = 0.0f;
+            io.MouseWheelH = 0.0f;
+        }
+        if (io.KeyAlt && io.MouseDelta.x != 0.0f) {
+            int64_t delta_ticks = static_cast<int64_t>(io.MouseDelta.x / app.view.px_per_tick);
+            int64_t new_scroll = static_cast<int64_t>(app.view.scroll_tick) - delta_ticks;
+            app.view.scroll_tick = static_cast<uint64_t>(std::max<int64_t>(0, new_scroll));
+        }
+    }
+
+    const float px_per_tick = app.view.px_per_tick;
+    const uint64_t scroll_tick = app.view.scroll_tick;
+
+    ImVec2 mouse_pos = io.MousePos;
     float rel_mouse_x = mouse_pos.x - canvas_pos.x;
     int64_t hovered_tick = std::max<int64_t>(0, static_cast<int64_t>(rel_mouse_x / px_per_tick) + scroll_tick);
     uint32_t hovered_bar = static_cast<uint32_t>(hovered_tick / ticks_per_bar);
 
     auto& sel = app.view.cell_selection;
 
-    // Direct Mouse Click Selection Handler
-    if (is_hovered && (ImGui::IsMouseClicked(ImGuiMouseButton_Left))) {
-        // Clear clip selection across all tracks
+    // Direct Mouse Click Selection Handler (Ignore selection drag when Alt-panning)
+    if (is_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
         for (auto& t : app.project.tracks) {
             for (auto& c : t.clips) c.selected = false;
         }
 
-        // Always update selection anchor and start_bar to the clicked bar
         sel.track_index = static_cast<int>(track_index);
         sel.drag_anchor_bar = hovered_bar;
         sel.start_bar = hovered_bar;
@@ -111,7 +144,6 @@ void ClipManager::DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t t
         sel.active = true;
         app.view.active_track_index = static_cast<int>(track_index);
 
-        // Check if mouse clicked directly inside a clip
         for (auto& clip : track.clips) {
             float c_x1 = canvas_pos.x + static_cast<float>(static_cast<int64_t>(clip.start_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
             float c_x2 = c_x1 + (clip.duration * px_per_tick);
@@ -121,8 +153,7 @@ void ClipManager::DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t t
                 break;
             }
         }
-    } else if (is_clicking && sel.active && sel.track_index == static_cast<int>(track_index)) {
-        // Multi-bar Selection Drag
+    } else if (is_clicking && sel.active && sel.track_index == static_cast<int>(track_index) && !io.KeyAlt) {
         uint32_t min_bar = std::min(sel.drag_anchor_bar, hovered_bar);
         uint32_t max_bar = std::max(sel.drag_anchor_bar, hovered_bar);
         sel.start_bar = min_bar;
@@ -219,111 +250,16 @@ void ClipManager::DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t t
 
     draw_list->PopClipRect();
 
-    // Context Menu
+    TimelineEditorContext ctx{ app, track, track_index, ticks_per_bar };
+
+    // Execute shortcuts ONLY if the timeline window is in focus AND this is the active track
+    if (app.view.active_track_index == static_cast<int>(track_index)) {
+        m_interaction.HandleKeyboardShortcuts(ctx);
+    }
+
+    // Render Context Menu
     if (ImGui::BeginPopupContextItem("TimelineCellContextMenu")) {
-        uint64_t target_start = sel.start_bar * ticks_per_bar;
-        uint64_t target_dur = sel.num_bars * ticks_per_bar;
-
-        std::vector<size_t> overlapping_indices;
-        int clip_to_split = -1;
-
-        for (size_t c_idx = 0; c_idx < track.clips.size(); ++c_idx) {
-            const auto& clip = track.clips[c_idx];
-            if (ClipsOverlap(target_start, target_dur, clip.start_tick, clip.duration)) {
-                overlapping_indices.push_back(c_idx);
-            }
-            // Check if selected bar split point lies within an existing clip
-            if (target_start > clip.start_tick && target_start < clip.start_tick + clip.duration) {
-                clip_to_split = static_cast<int>(c_idx);
-            }
-        }
-
-        bool has_overlap = !overlapping_indices.empty();
-
-        // Split Option
-        if (clip_to_split >= 0) {
-            if (ImGui::MenuItem(("Split Clip at Bar " + std::to_string(sel.start_bar + 1)).c_str())) {
-                auto& orig = track.clips[clip_to_split];
-                uint64_t split_tick = target_start;
-                uint64_t first_dur = split_tick - orig.start_tick;
-                uint64_t second_dur = orig.duration - first_dur;
-
-                Model::Clip second_clip = orig;
-                second_clip.start_tick = split_tick;
-                second_clip.duration = second_dur;
-                second_clip.notes.clear();
-
-                // Move notes belonging to second clip
-                auto it = orig.notes.begin();
-                while (it != orig.notes.end()) {
-                    if (it->start_tick >= first_dur) {
-                        Model::Note n = *it;
-                        n.start_tick -= first_dur;
-                        second_clip.notes.push_back(n);
-                        it = orig.notes.erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
-
-                orig.duration = first_dur;
-                track.clips.push_back(second_clip);
-            }
-            ImGui::Separator();
-        }
-
-        if (has_overlap) ImGui::BeginDisabled();
-        if (ImGui::MenuItem(("Add Clip (" + std::to_string(sel.num_bars) + " Bars)").c_str())) {
-            Model::Clip new_clip;
-            new_clip.start_tick = target_start;
-            new_clip.duration = target_dur;
-            new_clip.name = "Clip " + std::to_string(track.clips.size() + 1);
-            new_clip.type = Model::ClipType::Standard;
-            track.clips.push_back(new_clip);
-        }
-
-        bool can_repeat = (target_start >= target_dur);
-        if (!can_repeat) ImGui::BeginDisabled();
-        if (ImGui::MenuItem(("Add Repeat Clip (" + std::to_string(sel.num_bars) + " Bars)").c_str())) {
-            Model::Clip rep_clip;
-            rep_clip.start_tick = target_start;
-            rep_clip.duration = target_dur;
-            rep_clip.name = "Repeat " + std::to_string(track.clips.size() + 1);
-            rep_clip.type = Model::ClipType::Repeat;
-            track.clips.push_back(rep_clip);
-        }
-        if (!can_repeat) ImGui::EndDisabled();
-        if (has_overlap) ImGui::EndDisabled();
-
-        ImGui::Separator();
-
-        if (has_overlap && overlapping_indices.size() == 1) {
-            if (ImGui::MenuItem("Copy Clip")) {
-                app.view.clip_clipboard = track.clips[overlapping_indices[0]];
-                app.view.has_copied_clip = true;
-            }
-        }
-
-        bool can_paste = app.view.has_copied_clip && !has_overlap;
-        if (!can_paste) ImGui::BeginDisabled();
-        if (ImGui::MenuItem("Paste Clip")) {
-            Model::Clip pasted_clip = app.view.clip_clipboard;
-            pasted_clip.start_tick = target_start;
-            track.clips.push_back(pasted_clip);
-        }
-        if (!can_paste) ImGui::EndDisabled();
-
-        ImGui::Separator();
-
-        if (!has_overlap) ImGui::BeginDisabled();
-        if (ImGui::MenuItem("Delete Selected Clip(s)")) {
-            std::sort(overlapping_indices.begin(), overlapping_indices.end(), std::greater<size_t>());
-            for (size_t idx : overlapping_indices) {
-                track.clips.erase(track.clips.begin() + idx);
-            }
-        }
-        if (!has_overlap) ImGui::EndDisabled();
-
+        m_interaction.DrawContextMenu(ctx);
         ImGui::EndPopup();
     }
 }

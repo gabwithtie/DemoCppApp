@@ -7,6 +7,10 @@ set(${CUR_TARGET_NAME}_src
 
 	gui/timeline/TimelineWindow.cpp
 	gui/timeline/ClipManager.cpp
+	gui/timeline/TimelineInteraction.cpp
+	gui/timeline/controls/TimelineClipboardControls.cpp
+	gui/timeline/controls/TimelineClipEditControls.cpp
+	gui/timeline/controls/TimelineSelectionControls.cpp
 	
 	gui/clip/ClipEditorWindow.cpp
 	gui/clip/NotePaintInteraction.cpp
