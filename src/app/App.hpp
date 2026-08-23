@@ -3,7 +3,9 @@
 #include "model/Project.hpp"
 #include "audio/AudioEngine.hpp"
 
-#include "ISerializable.hpp"
+#include "../gui/features/propertydrawers/PropertyDrawers.hpp"
+#include "SerializationIncludes.hpp"
+
 #include "File/Parser.hpp"
 #include <string>
 #include <memory>

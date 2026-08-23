@@ -155,7 +155,6 @@ add_subdirectory("src/app")
 target_link_libraries(app_internal_libs INTERFACE gbe::app::app)
 
 add_subdirectory("src/tools")
-target_link_libraries(app_internal_libs INTERFACE gbe::tools)
 
 # Link everything seamlessly
 target_link_libraries(${PROJECT_NAME} PRIVATE app_internal_libs)

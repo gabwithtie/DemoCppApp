@@ -7,21 +7,20 @@ set(${CUR_TARGET_NAME}_src
 
 	gui/timeline/TimelineWindow.cpp
 	gui/timeline/ClipManager.cpp
-
+	
 	gui/clip/ClipEditorWindow.cpp
 	gui/clip/NoteManager.cpp
-
-	gui/clip/controls/NoteCreationControls.cpp
+	
+	gui/clip/controls/CtrlControls.cpp
 	gui/clip/controls/NoteEditingControls.cpp
 	gui/clip/controls/NoteSelection.cpp
 	gui/clip/controls/NoteChordControls.cpp
-
+	
 	gui/instrument/InstrumentWindow.cpp
-
+	
 	audio/AudioEngine.cpp
 	audio/MiniAudioImpl.cpp
-
-	midi/MidiInterface.cpp
+	audio/SoundFontInstrument.cpp
 )
 
 add_library(${CUR_TARGET_NAME} STATIC ${${CUR_TARGET_NAME}_src})

@@ -1,4 +1,4 @@
-#include "NoteCreationControls.hpp"
+#include "CtrlControls.hpp"
 #include "gui/clip/NoteManager.hpp"
 #include <algorithm>
 #include <cstdint>
@@ -6,7 +6,7 @@
 
 namespace gsr::gui {
 
-void NoteCreationControls::HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) {
+void CtrlControls::HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) {
     ImGuiIO& io = ImGui::GetIO();
     auto& note_clipboard = m_note_manager->GetNoteClipboard();
 

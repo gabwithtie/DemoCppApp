@@ -26,6 +26,8 @@ public:
         return m_track_processors;
     }
 
+    void AllNotesOff();
+
 private:
     App& m_app;
     uint32_t m_sample_rate{44100};

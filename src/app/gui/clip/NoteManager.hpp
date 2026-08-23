@@ -5,7 +5,7 @@
 #include <imgui.h>
 #include <vector>
 
-#include "controls/NoteCreationControls.hpp"
+#include "controls/CtrlControls.hpp"
 #include "controls/NoteEditingControls.hpp"
 #include "controls/NoteSelection.hpp"
 #include "controls/NoteChordControls.hpp"
@@ -43,13 +43,13 @@ private:
     uint32_t cache_grid_snap_ticks;
 
     // Controls
-    NoteCreationControls m_controls_NoteCreationControls{*this};
+    CtrlControls m_controls_CtrlControls{*this};
     NoteEditingControls m_controls_NoteEditingControls{*this};
     NoteSelection m_controls_NoteSelection{*this};
     NoteChordControls m_controls_NoteChordControls{*this};
 
     std::vector<INoteControls*> m_controls = {
-        &m_controls_NoteCreationControls,
+        &m_controls_CtrlControls,
         &m_controls_NoteEditingControls,
         &m_controls_NoteSelection,
         &m_controls_NoteChordControls

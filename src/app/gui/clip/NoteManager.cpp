@@ -56,7 +56,8 @@ void NoteManager::ProcessAndDrawNotes(
     if (canvas_hovered) {
         // 1. Local Horizontal Zoom (Shift + Mouse Scroll)
         if (io.KeyShift && io.MouseWheel != 0.0f) {
-            float zoom_factor = (io.MouseWheel > 0.0f) ? 1.15f : 0.85f;
+            float zoom_speed = 0.05f;
+            float zoom_factor = (io.MouseWheel > 0.0f) ? 1.0f + zoom_speed : 1.0f - zoom_speed;
             px_per_tick = std::clamp(px_per_tick * zoom_factor, 0.005f, 0.2f);
         }
 

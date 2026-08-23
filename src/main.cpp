@@ -51,9 +51,10 @@ int main(int argc, char** argv) {
         const float delta_time = ImGui::GetIO().DeltaTime;
         app.process_input();
         app.update(delta_time);
-
+        
         // Render ImGui dockspace and active windows
         guimanager.Draw();
+        app.render_ui(); // additional app specific ui
 
         window.CommitFrame();
     }

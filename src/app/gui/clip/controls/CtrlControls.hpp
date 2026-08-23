@@ -4,7 +4,7 @@
 
 namespace gsr::gui {
 
-class NoteCreationControls : public INoteControls {
+class CtrlControls : public INoteControls {
 public:
     using INoteControls::INoteControls;
 

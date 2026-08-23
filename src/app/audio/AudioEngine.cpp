@@ -1,4 +1,5 @@
 #define MINIAUDIO_IMPLEMENTATION
+#include "tsf.h"
 
 #include "AudioEngine.hpp"
 #include "App.hpp"
@@ -54,6 +55,21 @@ void AudioEngine::SyncTrackProcessors() {
     while (m_track_processors.size() < m_app.project.tracks.size()) {
         m_track_processors.push_back(std::make_unique<TrackProcessor>());
     }
+
+    for (size_t i = 0; i < m_app.project.tracks.size(); ++i) {
+        auto& track = m_app.project.tracks[i];
+        auto& processor = m_track_processors[i];
+
+        // Assign instrument if missing or flag requested a reload
+        if (!processor->HasInstrument() || track.needs_reload) {
+            if (!track.soundfont_path.empty()) {
+                auto inst = std::make_unique<SoundFontInstrument>();
+                inst->LoadFile(track.soundfont_path);
+                processor->SetInstrument(std::move(inst));
+            }
+            track.needs_reload = false;
+        }
+    }
 }
 
 void AudioEngine::ProcessPlaybackMidi(uint64_t start_tick, uint64_t end_tick, uint32_t frame_count) {
@@ -77,14 +93,23 @@ void AudioEngine::ProcessPlaybackMidi(uint64_t start_tick, uint64_t end_tick, ui
 
             for (const auto& note : clip.notes) {
                 uint64_t abs_note_start = clip_start + note.start_tick;
-                uint64_t abs_note_end = abs_note_start + note.duration;
 
+                // Ignore notes starting outside clip bounds
+                if (abs_note_start >= clip_end) continue;
+
+                // Truncate NoteOff at clip_end if note.duration extends past the clip boundary
+                uint64_t raw_note_end = abs_note_start + note.duration;
+                uint64_t effective_note_end = std::min(raw_note_end, clip_end);
+
+                // Send NoteOn
                 if (abs_note_start >= start_tick && abs_note_start < end_tick) {
                     uint32_t offset = static_cast<uint32_t>((abs_note_start - start_tick) * frames_per_tick);
                     instrument->SendNoteOn(track.midi_channel, note.pitch, note.velocity, offset);
                 }
-                if (abs_note_end >= start_tick && abs_note_end < end_tick) {
-                    uint32_t offset = static_cast<uint32_t>((abs_note_end - start_tick) * frames_per_tick);
+
+                // Send NoteOff at truncated boundary
+                if (effective_note_end >= start_tick && effective_note_end < end_tick) {
+                    uint32_t offset = static_cast<uint32_t>((effective_note_end - start_tick) * frames_per_tick);
                     instrument->SendNoteOff(track.midi_channel, note.pitch, 0, offset);
                 }
             }
@@ -115,17 +140,25 @@ void AudioEngine::AudioCallback(float* output_buffer, uint32_t frame_count) {
         auto& track = m_app.project.tracks[i];
         if (track.muted || i >= m_track_processors.size()) continue;
 
-        if (track.needs_reload) {
-            if (track.instrument_type == "SoundFont Synthesizer" && !track.soundfont_path.empty()) {
-                auto new_inst = std::make_unique<SoundFontInstrument>(track.soundfont_path, m_sample_rate);
-                m_track_processors[i]->SetInstrument(new_inst->IsLoaded() ? std::move(new_inst) : nullptr);
-            } else {
-                m_track_processors[i]->SetInstrument(nullptr);
-            }
-            track.needs_reload = false;
-        }
+        //TODO: Handle instrument change
 
         m_track_processors[i]->ProcessAudioBlock(output_buffer, frame_count, m_sample_rate, track.volume);
+    }
+}
+
+void AudioEngine::AllNotesOff() {
+    for (size_t i = 0; i < m_track_processors.size(); ++i) {
+        if (i >= m_app.project.tracks.size()) continue;
+
+        auto* instrument = m_track_processors[i]->GetInstrument();
+        if (!instrument) continue;
+
+        uint8_t ch = m_app.project.tracks[i].midi_channel;
+
+        // Flush all active pitch states on the track's MIDI channel
+        for (uint8_t pitch = 0; pitch < 128; ++pitch) {
+            instrument->SendNoteOff(ch, pitch, 0, 0);
+        }
     }
 }
 
