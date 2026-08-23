@@ -1,6 +1,6 @@
 // src/app/audio/AudioEngine.hpp
 #pragma once
-#include "TrackAudioProcessor.hpp"
+#include "TrackProcessor.hpp"
 #include <vector>
 #include <memory>
 #include <cstdint>
@@ -22,14 +22,14 @@ public:
 
     void AudioCallback(float* output_buffer, uint32_t frame_count);
 
-    std::vector<std::unique_ptr<TrackAudioProcessor>>& GetTrackProcessors() {
+    std::vector<std::unique_ptr<TrackProcessor>>& GetTrackProcessors() {
         return m_track_processors;
     }
 
 private:
     App& m_app;
     uint32_t m_sample_rate{44100};
-    std::vector<std::unique_ptr<TrackAudioProcessor>> m_track_processors;
+    std::vector<std::unique_ptr<TrackProcessor>> m_track_processors;
 
     // Hardware device state
     ma_device m_device{};

@@ -5,6 +5,11 @@
 #include <imgui.h>
 #include <vector>
 
+#include "controls/NoteCreationControls.hpp"
+#include "controls/NoteEditingControls.hpp"
+#include "controls/NoteSelection.hpp"
+#include "controls/NoteChordControls.hpp"
+
 namespace gsr::gui {
 
 struct NoteInitialState {
@@ -24,14 +29,31 @@ public:
         Model::Clip& clip,
         ImVec2 grid_origin,
         ImVec2 grid_size,
-        float px_per_tick,
+        float& px_per_tick, // Passed by reference to modify ClipEditorWindow local zoom
         float note_height,
         uint32_t grid_snap_ticks,
         bool canvas_hovered
     );
 
+    std::vector<Model::Note>& GetNoteClipboard() { return m_note_clipboard; }
+    uint32_t GetGridSnapTicks() const { return cache_grid_snap_ticks; }
+
 private:
     std::vector<Model::Note> m_note_clipboard;
+    uint32_t cache_grid_snap_ticks;
+
+    // Controls
+    NoteCreationControls m_controls_NoteCreationControls{*this};
+    NoteEditingControls m_controls_NoteEditingControls{*this};
+    NoteSelection m_controls_NoteSelection{*this};
+    NoteChordControls m_controls_NoteChordControls{*this};
+
+    std::vector<INoteControls*> m_controls = {
+        &m_controls_NoteCreationControls,
+        &m_controls_NoteEditingControls,
+        &m_controls_NoteSelection,
+        &m_controls_NoteChordControls
+    };
 
     // Interaction State
     int m_active_note_idx = -1;

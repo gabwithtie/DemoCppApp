@@ -5,38 +5,8 @@
 namespace gsr::gui {
 
 void NoteManager::HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) {
-    ImGuiIO& io = ImGui::GetIO();
-
-    // Copy selected notes (Ctrl+C)
-    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C)) {
-        m_note_clipboard.clear();
-        for (const auto& note : clip.notes) {
-            if (note.selected) {
-                m_note_clipboard.push_back(note);
-            }
-        }
-    }
-
-    // Paste notes at Playhead position (Ctrl+V)
-    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_V) && !m_note_clipboard.empty()) {
-        int64_t rel_playhead = static_cast<int64_t>(app.transport.current_tick) - static_cast<int64_t>(clip.start_tick);
-        uint64_t paste_base_tick = std::max<int64_t>(0, rel_playhead);
-
-        uint64_t min_clip_tick = m_note_clipboard.front().start_tick;
-        for (const auto& n : m_note_clipboard) {
-            min_clip_tick = std::min(min_clip_tick, n.start_tick);
-        }
-
-        // Deselect current notes before pasting
-        for (auto& n : clip.notes) n.selected = false;
-
-        // Paste relative to playhead tick
-        for (auto note : m_note_clipboard) {
-            note.selected = true;
-            int64_t offset = note.start_tick - min_clip_tick;
-            note.start_tick = std::min(clip.duration - 1, paste_base_tick + offset);
-            clip.notes.push_back(note);
-        }
+    for (auto& control : this->m_controls) {
+        control->HandleKeyboardShortcuts(app, clip);
     }
 }
 
@@ -61,11 +31,13 @@ void NoteManager::ProcessAndDrawNotes(
     Model::Clip& clip,
     ImVec2 grid_origin,
     ImVec2 grid_size,
-    float px_per_tick,
+    float& px_per_tick,
     float note_height,
     uint32_t grid_snap_ticks,
     bool canvas_hovered
 ) {
+    this->cache_grid_snap_ticks = grid_snap_ticks;
+
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 mouse_pos = io.MousePos;
@@ -80,10 +52,28 @@ void NoteManager::ProcessAndDrawNotes(
 
     HandleKeyboardShortcuts(app, clip);
 
+    // --- Piano Roll Local Navigation (Zoom & Pan) ---
+    if (canvas_hovered) {
+        // 1. Local Horizontal Zoom (Shift + Mouse Scroll)
+        if (io.KeyShift && io.MouseWheel != 0.0f) {
+            float zoom_factor = (io.MouseWheel > 0.0f) ? 1.15f : 0.85f;
+            px_per_tick = std::clamp(px_per_tick * zoom_factor, 0.005f, 0.2f);
+        }
+
+        // 2. Local Horizontal Pan (Alt + Mouse Delta X)
+        if (io.KeyAlt && io.MouseDelta.x != 0.0f && !m_is_dragging && !m_is_box_selecting) {
+            float current_scroll_x = ImGui::GetScrollX();
+            ImGui::SetScrollX(current_scroll_x - io.MouseDelta.x);
+        }
+
+        // Intercept scroll wheel events to stop default container scrolling
+        io.MouseWheel = 0.0f;
+        io.MouseWheelH = 0.0f;
+    }
+
     // Hit Test Notes
     int hovered_note_idx = -1;
     bool edge_hovered = false;
-    int note_to_delete = -1;
 
     for (size_t i = 0; i < clip.notes.size(); ++i) {
         auto& note = clip.notes[i];
@@ -108,25 +98,18 @@ void NoteManager::ProcessAndDrawNotes(
                 edge_hovered = true;
             }
         }
-
-        if (canvas_hovered && hovered_note_idx == static_cast<int>(i) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            note_to_delete = static_cast<int>(i);
-        }
     }
 
     if (edge_hovered || m_is_resizing) {
         ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
     }
 
-    if (note_to_delete >= 0) {
-        clip.notes.erase(clip.notes.begin() + note_to_delete);
-        return;
-    }
-
     // 1. Double Click Note Creation
     if (canvas_hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && hovered_note_idx < 0) {
         if (rel_x <= clip_px_width) {
             if (snapped_hover_tick < clip.duration) {
+                app.SaveUndoPoint();
+
                 Model::Note new_note;
                 new_note.pitch = static_cast<uint8_t>(hover_pitch);
                 new_note.start_tick = snapped_hover_tick;
@@ -138,7 +121,7 @@ void NoteManager::ProcessAndDrawNotes(
         }
     }
     // 2. Empty Space Click (Start Box Selection & Move Playhead to Grid Snap)
-    else if (canvas_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && hovered_note_idx < 0) {
+    else if (canvas_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && hovered_note_idx < 0 && !io.KeyAlt) {
         app.transport.current_tick = clip.start_tick + snapped_hover_tick;
         
         m_is_box_selecting = true;
@@ -200,7 +183,6 @@ void NoteManager::ProcessAndDrawNotes(
 
     // 4. Box Selection Active State, Scrub Playhead & Note Intersection Test
     if (m_is_box_selecting && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        // Continuous snapped playhead position update while scrubbing empty grid space
         app.transport.current_tick = clip.start_tick + snapped_hover_tick;
 
         ImVec2 box_min(std::min(m_box_select_start.x, mouse_pos.x), std::min(m_box_select_start.y, mouse_pos.y));
@@ -236,7 +218,6 @@ void NoteManager::ProcessAndDrawNotes(
         int delta_pitch = -static_cast<int>(std::round(delta_y / note_height));
 
         if (m_is_resizing) {
-            // Adjust ends of all selected notes together
             for (const auto& st : m_selected_initial_states) {
                 if (st.index < clip.notes.size()) {
                     int64_t new_dur = std::max<int64_t>(grid_snap_ticks, static_cast<int64_t>(st.duration) + snapped_delta_ticks);
@@ -244,7 +225,6 @@ void NoteManager::ProcessAndDrawNotes(
                 }
             }
         } else if (m_is_dragging) {
-            // Move all selected notes together, ensuring no note drops below tick 0
             int64_t min_initial_tick = m_selected_initial_states[0].start_tick;
             for (const auto& st : m_selected_initial_states) {
                 min_initial_tick = std::min<int64_t>(min_initial_tick, st.start_tick);
@@ -270,6 +250,14 @@ void NoteManager::ProcessAndDrawNotes(
         m_is_dragging = false;
         m_is_box_selecting = false;
         m_selected_initial_states.clear();
+    }
+
+    // --- Right-Click Context Menu ---
+    if (ImGui::BeginPopupContextWindow("NoteManagerContextMenu", ImGuiPopupFlags_MouseButtonRight)) {
+        for (auto* control : m_controls) {
+            control->DrawContextMenu(app, clip);
+        }
+        ImGui::EndPopup();
     }
 
     // Draw Synced Global Playhead on Top

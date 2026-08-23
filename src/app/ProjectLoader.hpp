@@ -49,6 +49,18 @@ public:
 
         App::GetInstance().SerializeToFile(path);
     }
+
+    static inline bool QuickSave() {
+        if (!currentSceneFile.empty()) {
+            SaveProject(currentSceneFile);
+            return true;
+        }
+        if (!currentProjectFile.empty()) {
+            SaveProject(currentProjectFile);
+            return true;
+        }
+        return false;
+    }
 };
 
 } // namespace gsr

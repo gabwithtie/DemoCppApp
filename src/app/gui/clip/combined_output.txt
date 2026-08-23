@@ -1,0 +1,641 @@
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\ClipEditorWindow.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "../gui/main/GuiWindow.h"
+#include "App.hpp"
+#include "NoteManager.hpp"
+#include "model/Track.hpp"
+#include <imgui.h>
+
+namespace gsr::gui {
+
+class ClipEditorWindow : public app::GuiWindow {
+public:
+    explicit ClipEditorWindow(gsr::App& app);
+    ~ClipEditorWindow() = default;
+
+    std::string GetWindowId() override { return "Piano Roll"; }
+    void DrawSelf() override;
+
+private:
+    gsr::App& m_app;
+    NoteManager m_note_manager;
+
+    float m_note_height = 14.0f;
+    float m_px_per_tick = 0.04f;
+    uint32_t m_grid_snap_ticks = 240;
+
+    Model::Clip* GetSelectedClip();
+    static std::string GetPitchName(uint8_t pitch);
+    void DrawPianoKeys(ImDrawList* draw_list, ImVec2 origin, float key_width, float total_height);
+    void DrawGridBackground(ImDrawList* draw_list, Model::Clip& clip, ImVec2 origin, ImVec2 grid_size);
+};
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\NoteManager.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "App.hpp"
+#include "model/Track.hpp"
+#include <imgui.h>
+#include <vector>
+
+#include "controls/CopyCutPaste.hpp"
+
+namespace gsr::gui {
+
+struct NoteInitialState {
+    size_t index;
+    uint64_t start_tick;
+    uint64_t duration;
+    uint8_t pitch;
+};
+
+class NoteManager {
+public:
+    NoteManager() = default;
+    ~NoteManager() = default;
+
+    void ProcessAndDrawNotes(
+        gsr::App& app,
+        Model::Clip& clip,
+        ImVec2 grid_origin,
+        ImVec2 grid_size,
+        float px_per_tick,
+        float note_height,
+        uint32_t grid_snap_ticks,
+        bool canvas_hovered
+    );
+
+    std::vector<Model::Note>& GetNoteClipboard() {return m_note_clipboard;}
+
+private:
+    std::vector<Model::Note> m_note_clipboard;
+
+    //Controls
+    CopyCutPaste m_controls_copycutpaste{*this};
+
+    std::vector<INoteControls*> m_controls = {
+        &m_controls_copycutpaste
+    };
+
+    // Interaction State
+    int m_active_note_idx = -1;
+    bool m_is_resizing = false;
+    bool m_is_dragging = false;
+
+    // Group Drag/Resize Initial States
+    std::vector<NoteInitialState> m_selected_initial_states;
+
+    // Box Selection State
+    bool m_is_box_selecting = false;
+    ImVec2 m_box_select_start{0.0f, 0.0f};
+
+    ImVec2 m_drag_mouse_start{0.0f, 0.0f};
+
+    void HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip);
+    void DrawPlayhead(gsr::App& app, const Model::Clip& clip, ImVec2 grid_origin, ImVec2 grid_size, float px_per_tick, ImDrawList* draw_list);
+};
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\ClipEditorWindow.cpp 
+================================================== 
+ 
+#include "ClipEditorWindow.hpp"
+#include <algorithm>
+#include <cmath>
+#include <string>
+
+namespace gsr::gui {
+
+ClipEditorWindow::ClipEditorWindow(gsr::App& app)
+    : m_app(app) {}
+
+Model::Clip* ClipEditorWindow::GetSelectedClip() {
+    int trk_idx = m_app.view.active_track_index;
+    if (trk_idx < 0 || trk_idx >= static_cast<int>(m_app.project.tracks.size())) {
+        return nullptr;
+    }
+
+    auto& active_track = m_app.project.tracks[trk_idx];
+    for (auto& clip : active_track.clips) {
+        if (clip.selected) return &clip;
+    }
+
+    for (auto& trk : m_app.project.tracks) {
+        for (auto& clip : trk.clips) {
+            if (clip.selected) return &clip;
+        }
+    }
+
+    const auto& sel = m_app.view.cell_selection;
+    if (sel.active && sel.track_index == trk_idx) {
+        uint32_t ticks_per_bar = m_app.project.ppq * 4;
+        uint64_t sel_start = sel.start_bar * ticks_per_bar;
+        uint64_t sel_dur = sel.num_bars * ticks_per_bar;
+
+        for (auto& clip : active_track.clips) {
+            if ((sel_start < clip.start_tick + clip.duration) && (sel_start + sel_dur > clip.start_tick)) {
+                return &clip;
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+std::string ClipEditorWindow::GetPitchName(uint8_t pitch) {
+    static const char* note_names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    int octave = (pitch / 12) - 1;
+    return std::string(note_names[pitch % 12]) + std::to_string(octave);
+}
+
+void ClipEditorWindow::DrawPianoKeys(ImDrawList* draw_list, ImVec2 origin, float key_width, float total_height) {
+    for (int p = 127; p >= 0; --p) {
+        float y1 = origin.y + (127 - p) * m_note_height;
+        float y2 = y1 + m_note_height;
+
+        uint8_t note_in_oct = p % 12;
+        bool is_black_key = (note_in_oct == 1 || note_in_oct == 3 || note_in_oct == 6 || note_in_oct == 8 || note_in_oct == 10);
+
+        ImU32 bg_color = is_black_key ? IM_COL32(35, 35, 38, 255) : IM_COL32(210, 210, 215, 255);
+        ImU32 text_color = is_black_key ? IM_COL32(180, 180, 180, 255) : IM_COL32(20, 20, 20, 255);
+
+        draw_list->AddRectFilled(ImVec2(origin.x, y1), ImVec2(origin.x + key_width, y2), bg_color);
+        draw_list->AddLine(ImVec2(origin.x, y2), ImVec2(origin.x + key_width, y2), IM_COL32(80, 80, 80, 100));
+
+        if (note_in_oct == 0 || p == 127 || m_note_height >= 16.0f) {
+            std::string label = GetPitchName(static_cast<uint8_t>(p));
+            draw_list->AddText(ImVec2(origin.x + 4.0f, y1 + 1.0f), text_color, label.c_str());
+        }
+    }
+}
+
+void ClipEditorWindow::DrawGridBackground(ImDrawList* draw_list, Model::Clip& clip, ImVec2 origin, ImVec2 grid_size) {
+    const uint32_t ppq = m_app.project.ppq;
+    const float clip_px_width = clip.duration * m_px_per_tick;
+
+    for (int p = 127; p >= 0; --p) {
+        float y = origin.y + (127 - p) * m_note_height;
+        uint8_t note_in_oct = p % 12;
+        bool is_black_key = (note_in_oct == 1 || note_in_oct == 3 || note_in_oct == 6 || note_in_oct == 8 || note_in_oct == 10);
+
+        if (is_black_key) {
+            draw_list->AddRectFilled(ImVec2(origin.x, y), ImVec2(origin.x + grid_size.x, y + m_note_height), IM_COL32(0, 0, 0, 25));
+        }
+        draw_list->AddLine(ImVec2(origin.x, y + m_note_height), ImVec2(origin.x + grid_size.x, y + m_note_height), IM_COL32(255, 255, 255, 12));
+    }
+
+    for (uint64_t tick = 0; tick <= clip.duration; tick += m_grid_snap_ticks) {
+        float x = origin.x + (tick * m_px_per_tick);
+        bool is_bar = (tick % (ppq * 4) == 0);
+        bool is_beat = (tick % ppq == 0);
+
+        ImU32 line_col = is_bar ? IM_COL32(200, 200, 200, 100) : (is_beat ? IM_COL32(150, 150, 150, 50) : IM_COL32(100, 100, 100, 25));
+        draw_list->AddLine(ImVec2(x, origin.y), ImVec2(x, origin.y + grid_size.y), line_col);
+    }
+
+    if (grid_size.x > clip_px_width) {
+        draw_list->AddRectFilled(
+            ImVec2(origin.x + clip_px_width, origin.y),
+            ImVec2(origin.x + grid_size.x, origin.y + grid_size.y),
+            IM_COL32(10, 10, 15, 180)
+        );
+    }
+    draw_list->AddLine(
+        ImVec2(origin.x + clip_px_width, origin.y),
+        ImVec2(origin.x + clip_px_width, origin.y + grid_size.y),
+        IM_COL32(255, 100, 100, 255),
+        2.0f
+    );
+}
+
+void ClipEditorWindow::DrawSelf() {
+    Model::Clip* clip = GetSelectedClip();
+
+    if (!clip) {
+        ImGui::TextDisabled("No clip selected. Click a clip in the timeline view to edit.");
+        return;
+    }
+
+    ImGui::Text("Editing Clip: ");
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", clip->name.c_str());
+
+    ImGui::SameLine(0.0f, 20.0f);
+    ImGui::SetNextItemWidth(100.0f);
+    ImGui::SliderFloat("Zoom H", &m_px_per_tick, 0.005f, 0.1f, "%.3f");
+
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(100.0f);
+    ImGui::SliderFloat("Zoom V", &m_note_height, 8.0f, 28.0f, "%.0f px");
+
+    ImGui::SameLine();
+    uint32_t ppq = m_app.project.ppq;
+    int snap_idx = (m_grid_snap_ticks == ppq / 2) ? 0 : ((m_grid_snap_ticks == ppq / 4) ? 1 : 2);
+    const char* snap_options[] = { "1/8 Note", "1/16 Note", "1/32 Note" };
+    ImGui::SetNextItemWidth(110.0f);
+    if (ImGui::Combo("Snap", &snap_idx, snap_options, IM_ARRAYSIZE(snap_options))) {
+        if (snap_idx == 0) m_grid_snap_ticks = ppq / 2;
+        else if (snap_idx == 1) m_grid_snap_ticks = ppq / 4;
+        else if (snap_idx == 2) m_grid_snap_ticks = ppq / 8;
+    }
+
+    ImGui::Separator();
+
+    constexpr float KEY_WIDTH = 55.0f;
+    const float total_grid_height = 128.0f * m_note_height;
+    const float total_grid_width = std::max(ImGui::GetContentRegionAvail().x - KEY_WIDTH, clip->duration * m_px_per_tick + 200.0f);
+
+    ImGui::BeginChild("PianoRollScrollArea", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
+
+    ImVec2 canvas_origin = ImGui::GetCursorScreenPos();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    DrawPianoKeys(draw_list, canvas_origin, KEY_WIDTH, total_grid_height);
+
+    ImVec2 grid_origin(canvas_origin.x + KEY_WIDTH, canvas_origin.y);
+    ImVec2 grid_size(total_grid_width, total_grid_height);
+
+    // Draw canvas widget and capture hover state even when active/clicked
+    ImGui::SetCursorScreenPos(grid_origin);
+    ImGui::InvisibleButton("PianoRollCanvas", grid_size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+    bool canvas_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+
+    DrawGridBackground(draw_list, *clip, grid_origin, grid_size);
+
+    // Pass canvas_hovered into NoteManager
+    m_note_manager.ProcessAndDrawNotes(
+        m_app,
+        *clip,
+        grid_origin,
+        grid_size,
+        m_px_per_tick,
+        m_note_height,
+        m_grid_snap_ticks,
+        canvas_hovered
+    );
+
+    ImGui::EndChild();
+}
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\NoteManager.cpp 
+================================================== 
+ 
+#include "NoteManager.hpp"
+#include <algorithm>
+#include <cmath>
+
+namespace gsr::gui {
+
+void NoteManager::HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) {
+    for(auto& control : this->m_controls){
+        control->HandleKeyboardShortcuts(app, clip);
+    }
+}
+
+void NoteManager::DrawPlayhead(gsr::App& app, const Model::Clip& clip, ImVec2 grid_origin, ImVec2 grid_size, float px_per_tick, ImDrawList* draw_list) {
+    int64_t rel_playhead_tick = static_cast<int64_t>(app.transport.current_tick) - static_cast<int64_t>(clip.start_tick);
+    
+    if (rel_playhead_tick >= 0) {
+        float playhead_x = grid_origin.x + (rel_playhead_tick * px_per_tick);
+        if (playhead_x >= grid_origin.x && playhead_x <= grid_origin.x + grid_size.x) {
+            draw_list->AddLine(
+                ImVec2(playhead_x, grid_origin.y),
+                ImVec2(playhead_x, grid_origin.y + grid_size.y),
+                IM_COL32(255, 75, 75, 255),
+                2.0f
+            );
+        }
+    }
+}
+
+void NoteManager::ProcessAndDrawNotes(
+    gsr::App& app,
+    Model::Clip& clip,
+    ImVec2 grid_origin,
+    ImVec2 grid_size,
+    float px_per_tick,
+    float note_height,
+    uint32_t grid_snap_ticks,
+    bool canvas_hovered
+) {
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImGuiIO& io = ImGui::GetIO();
+    ImVec2 mouse_pos = io.MousePos;
+
+    float clip_px_width = clip.duration * px_per_tick;
+
+    float rel_x = std::max(0.0f, mouse_pos.x - grid_origin.x);
+    float rel_y = std::max(0.0f, mouse_pos.y - grid_origin.y);
+    uint64_t raw_hover_tick = static_cast<uint64_t>(rel_x / px_per_tick);
+    uint64_t snapped_hover_tick = (raw_hover_tick / grid_snap_ticks) * grid_snap_ticks;
+    int hover_pitch = std::clamp(127 - static_cast<int>(rel_y / note_height), 0, 127);
+
+    HandleKeyboardShortcuts(app, clip);
+
+    // Hit Test Notes
+    int hovered_note_idx = -1;
+    bool edge_hovered = false;
+    int note_to_delete = -1;
+
+    for (size_t i = 0; i < clip.notes.size(); ++i) {
+        auto& note = clip.notes[i];
+
+        float nx1 = grid_origin.x + (note.start_tick * px_per_tick);
+        float nx2 = nx1 + (note.duration * px_per_tick);
+        float ny1 = grid_origin.y + (127 - note.pitch) * note_height;
+        float ny2 = ny1 + note_height;
+
+        ImVec2 n_min(nx1, ny1 + 1.0f);
+        ImVec2 n_max(nx2, ny2 - 1.0f);
+
+        ImU32 fill_col = note.selected ? IM_COL32(255, 210, 80, 240) : IM_COL32(230, 150, 40, 220);
+        ImU32 border_col = note.selected ? IM_COL32(255, 255, 200, 255) : IM_COL32(255, 190, 100, 255);
+
+        draw_list->AddRectFilled(n_min, n_max, fill_col, 2.0f);
+        draw_list->AddRect(n_min, n_max, border_col, 2.0f);
+
+        if (mouse_pos.x >= n_min.x && mouse_pos.x <= n_max.x && mouse_pos.y >= n_min.y && mouse_pos.y <= n_max.y) {
+            hovered_note_idx = static_cast<int>(i);
+            if (mouse_pos.x >= n_max.x - 6.0f) {
+                edge_hovered = true;
+            }
+        }
+
+        if (canvas_hovered && hovered_note_idx == static_cast<int>(i) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            note_to_delete = static_cast<int>(i);
+        }
+    }
+
+    if (edge_hovered || m_is_resizing) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+    }
+
+    if (note_to_delete >= 0) {
+        clip.notes.erase(clip.notes.begin() + note_to_delete);
+        return;
+    }
+
+    // 1. Double Click Note Creation
+    if (canvas_hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && hovered_note_idx < 0) {
+        if (rel_x <= clip_px_width) {
+            if (snapped_hover_tick < clip.duration) {
+                Model::Note new_note;
+                new_note.pitch = static_cast<uint8_t>(hover_pitch);
+                new_note.start_tick = snapped_hover_tick;
+                new_note.duration = grid_snap_ticks;
+                new_note.velocity = 100;
+                new_note.selected = true;
+                clip.notes.push_back(new_note);
+            }
+        }
+    }
+    // 2. Empty Space Click (Start Box Selection & Move Playhead to Grid Snap)
+    else if (canvas_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && hovered_note_idx < 0) {
+        app.transport.current_tick = clip.start_tick + snapped_hover_tick;
+        
+        m_is_box_selecting = true;
+        m_box_select_start = mouse_pos;
+
+        if (!io.KeyShift && !io.KeyCtrl) {
+            for (auto& note : clip.notes) note.selected = false;
+        }
+    }
+
+    // 3. Note Select / Drag / Duplicate Handler
+    if (canvas_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && hovered_note_idx >= 0) {
+        m_active_note_idx = hovered_note_idx;
+        m_drag_mouse_start = mouse_pos;
+        m_selected_initial_states.clear();
+
+        // Update Selection
+        if (!io.KeyShift && !io.KeyCtrl && !clip.notes[hovered_note_idx].selected) {
+            for (auto& n : clip.notes) n.selected = false;
+            clip.notes[hovered_note_idx].selected = true;
+        } else if (io.KeyShift || io.KeyCtrl) {
+            clip.notes[hovered_note_idx].selected = !clip.notes[hovered_note_idx].selected;
+        }
+
+        // Duplicate All Selected Notes on Alt + Drag
+        if (io.KeyAlt && !edge_hovered) {
+            std::vector<Model::Note> duplicates;
+            for (auto& n : clip.notes) {
+                if (n.selected) {
+                    n.selected = false;
+                    Model::Note dup = n;
+                    dup.selected = true;
+                    duplicates.push_back(dup);
+                }
+            }
+            for (const auto& dup : duplicates) {
+                clip.notes.push_back(dup);
+            }
+        }
+
+        if (edge_hovered) {
+            m_is_resizing = true;
+        } else {
+            m_is_dragging = true;
+        }
+
+        // Store initial states for all selected notes to sync group transform
+        for (size_t i = 0; i < clip.notes.size(); ++i) {
+            if (clip.notes[i].selected) {
+                m_selected_initial_states.push_back({
+                    i,
+                    clip.notes[i].start_tick,
+                    clip.notes[i].duration,
+                    clip.notes[i].pitch
+                });
+            }
+        }
+    }
+
+    // 4. Box Selection Active State, Scrub Playhead & Note Intersection Test
+    if (m_is_box_selecting && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        // Continuous snapped playhead position update while scrubbing empty grid space
+        app.transport.current_tick = clip.start_tick + snapped_hover_tick;
+
+        ImVec2 box_min(std::min(m_box_select_start.x, mouse_pos.x), std::min(m_box_select_start.y, mouse_pos.y));
+        ImVec2 box_max(std::max(m_box_select_start.x, mouse_pos.x), std::max(m_box_select_start.y, mouse_pos.y));
+
+        draw_list->AddRectFilled(box_min, box_max, IM_COL32(100, 180, 255, 40));
+        draw_list->AddRect(box_min, box_max, IM_COL32(120, 200, 255, 200), 0.0f, 0, 1.5f);
+
+        bool append_mode = io.KeyShift || io.KeyCtrl;
+
+        for (auto& note : clip.notes) {
+            float nx1 = grid_origin.x + (note.start_tick * px_per_tick);
+            float nx2 = nx1 + (note.duration * px_per_tick);
+            float ny1 = grid_origin.y + (127 - note.pitch) * note_height;
+            float ny2 = ny1 + note_height;
+
+            bool intersects = (nx1 < box_max.x && nx2 > box_min.x && ny1 < box_max.y && ny2 > box_min.y);
+            if (append_mode) {
+                if (intersects) note.selected = true;
+            } else {
+                note.selected = intersects;
+            }
+        }
+    }
+
+    // 5. Active Group Drag & Resize
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_selected_initial_states.empty()) {
+        float delta_x = mouse_pos.x - m_drag_mouse_start.x;
+        float delta_y = mouse_pos.y - m_drag_mouse_start.y;
+
+        int64_t delta_ticks = static_cast<int64_t>(delta_x / px_per_tick);
+        int64_t snapped_delta_ticks = (delta_ticks / static_cast<int64_t>(grid_snap_ticks)) * grid_snap_ticks;
+        int delta_pitch = -static_cast<int>(std::round(delta_y / note_height));
+
+        if (m_is_resizing) {
+            // Adjust ends of all selected notes together
+            for (const auto& st : m_selected_initial_states) {
+                if (st.index < clip.notes.size()) {
+                    int64_t new_dur = std::max<int64_t>(grid_snap_ticks, static_cast<int64_t>(st.duration) + snapped_delta_ticks);
+                    clip.notes[st.index].duration = static_cast<uint64_t>(new_dur);
+                }
+            }
+        } else if (m_is_dragging) {
+            // Move all selected notes together, ensuring no note drops below tick 0
+            int64_t min_initial_tick = m_selected_initial_states[0].start_tick;
+            for (const auto& st : m_selected_initial_states) {
+                min_initial_tick = std::min<int64_t>(min_initial_tick, st.start_tick);
+            }
+            int64_t allowed_delta_ticks = std::max(-min_initial_tick, snapped_delta_ticks);
+
+            for (const auto& st : m_selected_initial_states) {
+                if (st.index < clip.notes.size()) {
+                    int64_t target_tick = std::max<int64_t>(0, static_cast<int64_t>(st.start_tick) + allowed_delta_ticks);
+                    int target_pitch = std::clamp<int>(static_cast<int>(st.pitch) + delta_pitch, 0, 127);
+
+                    clip.notes[st.index].start_tick = static_cast<uint64_t>(target_tick);
+                    clip.notes[st.index].pitch = static_cast<uint8_t>(target_pitch);
+                }
+            }
+        }
+    }
+
+    // 6. Release Drag / Box Selection
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+        m_active_note_idx = -1;
+        m_is_resizing = false;
+        m_is_dragging = false;
+        m_is_box_selecting = false;
+        m_selected_initial_states.clear();
+    }
+
+    // Draw Synced Global Playhead on Top
+    DrawPlayhead(app, clip, grid_origin, grid_size, px_per_tick, draw_list);
+}
+
+} // namespace gsr::gui 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\controls\CopyCutPaste.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "INoteControls.hpp"
+
+namespace gsr::gui {
+
+class CopyCutPaste : public INoteControls {
+    public:
+    using INoteControls::INoteControls;
+
+    virtual void HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) override;
+};
+
+}
+ 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\controls\INoteControls.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "App.hpp"
+#include "model/Track.hpp"
+#include <imgui.h>
+#include <vector>
+
+namespace gsr::gui {
+
+class NoteManager;
+
+class INoteControls{
+    protected:
+    NoteManager* m_note_manager;
+    public:
+    inline INoteControls(NoteManager& _note_manager) {this->m_note_manager = &_note_manager;}
+
+    virtual void HandleKeyboardShortcuts(gsr::App& app, Model::Clip& clip) = 0;
+};
+
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\app\gui\clip\controls\CopyCutPaste.cpp 
+================================================== 
+ 
+#include "CopyCutPaste.hpp"
+#include <algorithm>
+#include <cmath>
+
+#include "gui/clip/NoteManager.hpp"
+
+void gsr::gui::CopyCutPaste::HandleKeyboardShortcuts(gsr::App &app, Model::Clip &clip)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    auto& m_note_clipboard = this->m_note_manager->GetNoteClipboard();
+
+    // Copy selected notes (Ctrl+C)
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C)) {
+        m_note_clipboard.clear();
+        for (const auto& note : clip.notes) {
+            if (note.selected) {
+                m_note_clipboard.push_back(note);
+            }
+        }
+    }
+
+    // Paste notes at Playhead position (Ctrl+V)
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_V) && !m_note_clipboard.empty()) {
+        int64_t rel_playhead = static_cast<int64_t>(app.transport.current_tick) - static_cast<int64_t>(clip.start_tick);
+        uint64_t paste_base_tick = std::max<int64_t>(0, rel_playhead);
+
+        uint64_t min_clip_tick = m_note_clipboard.front().start_tick;
+        for (const auto& n : m_note_clipboard) {
+            min_clip_tick = std::min(min_clip_tick, n.start_tick);
+        }
+
+        // Deselect current notes before pasting
+        for (auto& n : clip.notes) n.selected = false;
+
+        // Paste relative to playhead tick
+        for (auto note : m_note_clipboard) {
+            note.selected = true;
+            int64_t offset = note.start_tick - min_clip_tick;
+            note.start_tick = std::min(clip.duration - 1, paste_base_tick + offset);
+            clip.notes.push_back(note);
+        }
+    }
+} 
+ 

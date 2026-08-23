@@ -18,6 +18,7 @@ public:
         // --- File Menu ---
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("New Project", "Ctrl+N")) {
+                App::GetInstance().SaveUndoPoint();
                 App::GetInstance().project = Model::Project{};
             }
 
@@ -29,6 +30,15 @@ public:
             }
 
             if (ImGui::MenuItem("Save Project", "Ctrl+S")) {
+                if (!ProjectLoader::QuickSave()) {
+                    std::string outPath = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::SAVE, "gsrproj");
+                    if (!outPath.empty()) {
+                        ProjectLoader::SaveProject(outPath);
+                    }
+                }
+            }
+
+            if (ImGui::MenuItem("Save Project As...")) {
                 std::string outPath = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::SAVE, "gsrproj");
                 if (!outPath.empty()) {
                     ProjectLoader::SaveProject(outPath);
@@ -39,6 +49,19 @@ public:
 
             if (ImGui::MenuItem("Exit", "Alt+F4")) {
                 App::GetInstance().shutdown();
+            }
+
+            ImGui::EndMenu();
+        }
+
+        // --- Edit Menu ---
+        if (ImGui::BeginMenu("Edit")) {
+            if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
+                App::GetInstance().Undo();
+            }
+
+            if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
+                App::GetInstance().Redo();
             }
 
             ImGui::EndMenu();
