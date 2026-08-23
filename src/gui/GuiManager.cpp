@@ -10,6 +10,7 @@ namespace app {
 	{
 		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 		ImGui::GetIO().MouseDoubleClickMaxDist = 10.0f; // Default is 6.0f
+		ImGui::GetIO().IniFilename = "layout.ini";
 
 		this->assignmentOverride = additionalwindows;
 

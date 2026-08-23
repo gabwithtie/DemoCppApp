@@ -38,7 +38,19 @@ public:
     std::vector<Model::Note>& GetNoteClipboard() { return m_note_clipboard; }
     uint32_t GetGridSnapTicks() const { return cache_grid_snap_ticks; }
 
+    enum class EditMode { Select, Paint };
+    enum class PaintTarget { Velocity, Aftertouch };
+
+    EditMode m_edit_mode = EditMode::Select;
+    PaintTarget m_paint_target = PaintTarget::Velocity;
+    float m_brush_radius = 25.0f;
+    float m_brush_strength = 0.8f;
+
+    static constexpr uint64_t SEGMENT_TICK_RES = 24; // 1/64 note at 960 PPQ
+    
 private:
+    void ApplyPaintBrush(Model::Clip& clip, ImVec2 mouse_pos, ImVec2 grid_origin, float px_per_tick, float note_height);
+
     std::vector<Model::Note> m_note_clipboard;
     uint32_t cache_grid_snap_ticks;
 

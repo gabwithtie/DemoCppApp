@@ -31,13 +31,15 @@ int main(int argc, char** argv) {
 
     // 4. Configure Layout Assignments via Designated Initializers
     app::GuiManager::WindowAssignmentOverride windowoverride = {
-        .showns = {
-            {
-                &timelineWindow,
-                &clipEditorWindow,
+        .topLeft = {
+            &clipEditorWindow,
+        },
+        .bottomLeft = {
+            &timelineWindow,
+            },
+            .bottomRight = {
                 &instrumentWindow
             }
-        }
     };
     app::GuiManager guimanager(windowoverride);
 

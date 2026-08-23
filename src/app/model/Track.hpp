@@ -12,10 +12,13 @@ enum class ClipType {
 
 struct Note {
     uint8_t pitch{60};
+    uint64_t start_tick{0};
+    uint64_t duration{480};
     uint8_t velocity{100};
-    uint64_t start_tick{0}; // Relative offset from clip start tick
-    uint64_t duration{960};
     bool selected{false};
+
+    // Sub-note resolution segment data for paint mode
+    std::vector<float> paint_segments{};
 };
 
 struct Clip {

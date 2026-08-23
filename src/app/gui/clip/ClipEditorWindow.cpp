@@ -138,6 +138,32 @@ void ClipEditorWindow::DrawSelf() {
         else if (snap_idx == 2) m_grid_snap_ticks = ppq / 8;
     }
 
+    // Add to toolbar in ClipEditorWindow::DrawSelf()
+    int mode_idx = static_cast<int>(m_note_manager.m_edit_mode);
+    const char* modes[] = { "Select Mode", "Paint Mode" };
+    ImGui::SetNextItemWidth(110.0f);
+    if (ImGui::Combo("Tool", &mode_idx, modes, IM_ARRAYSIZE(modes))) {
+        m_note_manager.m_edit_mode = static_cast<NoteManager::EditMode>(mode_idx);
+    }
+
+    if (m_note_manager.m_edit_mode == NoteManager::EditMode::Paint) {
+        ImGui::SameLine();
+        int target_idx = static_cast<int>(m_note_manager.m_paint_target);
+        const char* targets[] = { "Velocity", "Aftertouch" };
+        ImGui::SetNextItemWidth(100.0f);
+        if (ImGui::Combo("Target", &target_idx, targets, IM_ARRAYSIZE(targets))) {
+            m_note_manager.m_paint_target = static_cast<NoteManager::PaintTarget>(target_idx);
+        }
+
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(90.0f);
+        ImGui::SliderFloat("Radius", &m_note_manager.m_brush_radius, 5.0f, 100.0f, "%.0f px");
+
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(90.0f);
+        ImGui::SliderFloat("Value", &m_note_manager.m_brush_strength, 0.0f, 1.0f, "%.2f");
+    }
+
     ImGui::Separator();
 
     constexpr float KEY_WIDTH = 55.0f;
