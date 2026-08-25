@@ -33,15 +33,22 @@ struct TempoPoint {
     double bpm{120.0};  // Beats per minute
 };
 
+struct TimeKey {
+    uint64_t source_tick{0}; // Original unwarped musical tick reference
+    uint64_t target_tick{0}; // Stretched/squashed timeline tick position
+    bool selected{false};
+};
+
 struct Project {
     std::string title{"Untitled Project"};
-    uint32_t ppq{960};  // Resolution: Pulses Per Quarter note
+    uint32_t ppq{960};
 
-    // Master timelines (must remain sorted chronologically)
+    double default_bpm{120.0}; // Fallback when no keys exist
+    std::vector<TimeKey> time_keys; // Active time warp keys
+
     std::vector<TempoPoint> tempo_map{ {0, 120.0} };
     std::vector<TimeSignatureChange> time_sig_map{ {0, {4, 4}} };
     std::vector<KeySignatureChange> key_sig_map{ {0, {0, KeyType::Major}} };
-
     std::vector<Track> tracks;
 };
 

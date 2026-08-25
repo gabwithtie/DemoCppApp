@@ -17,6 +17,11 @@ public:
 private:
     gsr::App& m_app;
     ClipManager m_clip_manager;
+
+    // Track active key handle across drag frames without index swapping bugs
+    Model::TimeKey* m_dragging_key{nullptr};
+
+    void DrawTimeKeyBar();
 };
 
 } // namespace gsr::gui
