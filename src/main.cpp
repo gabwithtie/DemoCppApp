@@ -6,9 +6,9 @@
 
 // Application GUI Extensions
 #include "gui/MenuBarExtension.hpp"
-#include "gui/timeline/TimelineWindow.hpp"
-#include "gui/clip/ClipEditorWindow.hpp"
-#include "gui/instrument/InstrumentWindow.hpp"
+
+#include "gui/train/TrainWindow.h"
+#include "app/gui/ProjectPicker.h"
 
 #include <imgui.h>
 
@@ -23,30 +23,31 @@ int main(int argc, char** argv) {
     }
 
     // 3. Instantiate GUI Windows
-    gsr::gui::TimelineWindow timelineWindow(app);
-    gsr::gui::ClipEditorWindow clipEditorWindow(app);
-    gsr::gui::InstrumentWindow instrumentWindow(app);
-
     gsr::MenuBarExtension menuBarExtension;
+
+    gsr::TrainWindow trainWindow;
+    gsr::ProjectPicker projectPicker;
+
 
     // 4. Configure Layout Assignments via Designated Initializers
     app::GuiManager::WindowAssignmentOverride windowoverride = {
         .topLeft = {
-            &clipEditorWindow,
+            &trainWindow
         },
         .bottomLeft = {
-            &timelineWindow,
-            },
-            .bottomRight = {
-                &instrumentWindow
-            }
+            //&window
+        },
+        .bottomRight = {
+            //&window
+        },
+        .startupWindow = &projectPicker
     };
     app::GuiManager guimanager(windowoverride);
 
     guimanager.GetMenuBar().AddMenu(&menuBarExtension);
 
     // 5. Main Execution Loop
-    while (!window.GetShouldQuit() && app.is_running) {
+    while (!window.GetShouldQuit()) {
         window.InitFrame();
 
         // Evaluate transport timing & app calculations
@@ -56,7 +57,7 @@ int main(int argc, char** argv) {
         
         // Render ImGui dockspace and active windows
         guimanager.Draw();
-        app.render_ui(); // additional app specific ui
+
 
         window.CommitFrame();
     }

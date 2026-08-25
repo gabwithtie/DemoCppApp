@@ -18,8 +18,7 @@ public:
         // --- File Menu ---
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("New Project", "Ctrl+N")) {
-                App::GetInstance().SaveUndoPoint();
-                App::GetInstance().project = Model::Project{};
+                ProjectLoader::StartNewProject();
             }
 
             if (ImGui::MenuItem("Load Project", "Ctrl+O")) {
@@ -49,19 +48,6 @@ public:
 
             if (ImGui::MenuItem("Exit", "Alt+F4")) {
                 App::GetInstance().shutdown();
-            }
-
-            ImGui::EndMenu();
-        }
-
-        // --- Edit Menu ---
-        if (ImGui::BeginMenu("Edit")) {
-            if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
-                App::GetInstance().Undo();
-            }
-
-            if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
-                App::GetInstance().Redo();
             }
 
             ImGui::EndMenu();

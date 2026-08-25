@@ -13,6 +13,9 @@ namespace app {
 		ImGui::GetIO().IniFilename = "layout.ini";
 
 		this->assignmentOverride = additionalwindows;
+		this->startupWindow = additionalwindows.startupWindow;
+		if (this->startupWindow != nullptr)
+			this->windows.push_back(this->startupWindow);
 
 		for (const auto& shown_list : additionalwindows.showns)
 			for (const auto& shown : shown_list)
@@ -81,11 +84,12 @@ namespace app {
 			ImGui::DockBuilderFinish(dockspace_id);
 		}
 
-		this->menuBar.Draw();
+		if (startupWindow == nullptr || !startupWindow->IsOpen())
+			this->menuBar.Draw();
 
 		for (const auto& window : this->windows)
 		{
-			if (window->IsOpen())
+			if (window->IsOpen() && (startupWindow == nullptr || !startupWindow->IsOpen() || window == startupWindow))
 				window->Draw();
 		}
 	}

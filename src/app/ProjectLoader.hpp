@@ -1,7 +1,10 @@
 #pragma once
 
 #include <filesystem>
+#include <algorithm>
+#include <fstream>
 #include <string>
+#include <vector>
 #include "File/Parser.hpp"
 #include "App.hpp"
 
@@ -15,11 +18,13 @@ class ProjectLoader {
     inline static std::filesystem::path currentProjectDir;
     inline static std::filesystem::path currentSceneFile;
     inline static std::filesystem::path currentProjectFile;
+    inline static bool projectOpen = false;
 
 public:
     inline static std::filesystem::path GetCurrentProjectDir() { return currentProjectDir; }
     inline static std::filesystem::path GetCurrentSceneFile() { return currentSceneFile; }
     inline static std::filesystem::path GetCurrentProjectFile() { return currentProjectFile; }
+    inline static bool IsProjectOpen() { return projectOpen; }
 
     inline static std::filesystem::path GetAbsolutePath(const std::filesystem::path& relativePath) {
         return std::filesystem::absolute(currentProjectDir / relativePath);
@@ -41,6 +46,15 @@ public:
 
             App::GetInstance().DeserializeFromFile(path);
         }
+        projectOpen = true;
+    }
+
+    static inline void StartNewProject() {
+        currentProjectDir.clear();
+        currentSceneFile.clear();
+        currentProjectFile.clear();
+        App::GetInstance().project = Model::Project{};
+        projectOpen = true;
     }
 
     static inline void SaveProject(const std::filesystem::path& path) {
@@ -48,6 +62,7 @@ public:
         currentProjectDir = path.parent_path();
 
         App::GetInstance().SerializeToFile(path);
+        projectOpen = true;
     }
 
     static inline bool QuickSave() {
