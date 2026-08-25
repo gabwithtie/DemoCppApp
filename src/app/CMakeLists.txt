@@ -22,6 +22,7 @@ set(${CUR_TARGET_NAME}_src
 	gui/clip/controls/NoteEditingControls.cpp
 	gui/clip/controls/NoteSelection.cpp
 	gui/clip/controls/NoteChordControls.cpp
+	gui/clip/controls/NoteSubdivideControls.cpp
 	
 	gui/instrument/InstrumentWindow.cpp
 	

@@ -18,9 +18,44 @@ void NoteEditingControls::HandleKeyboardShortcuts(NoteEditorContext& ctx) {
     if (io.WantCaptureKeyboard) return;
 
     auto& clip = ctx.clip;
-    uint32_t grid_snap_ticks = ctx.grid_snap_ticks;
 
     if (!io.KeyCtrl) {
+        // --- Snap Grid Adjustment (Shift + R + MouseScroll) ---
+        struct SnapGridState {
+            int current_index = 0;
+        };
+        static ModalSession<SnapGridState> s_snap_grid;
+
+        if (s_snap_grid.Begin(io.KeyShift && ImGui::IsKeyDown(ImGuiKey_R))) {
+            auto& s = s_snap_grid.data;
+            const uint32_t ppq = ctx.app.project.ppq;
+
+            if (s_snap_grid.just_started) {
+                int closest_idx = 0;
+                uint32_t min_diff = UINT32_MAX;
+                for (int i = 0; i < G_SNAP_OPTION_COUNT; ++i) {
+                    uint32_t ticks = GetTicksForSnap(G_SNAP_OPTIONS[i].resolution, ppq);
+                    uint32_t diff = (ctx.grid_snap_ticks > ticks) ? (ctx.grid_snap_ticks - ticks) : (ticks - ctx.grid_snap_ticks);
+                    if (diff < min_diff) {
+                        min_diff = diff;
+                        closest_idx = i;
+                    }
+                }
+                s.current_index = closest_idx;
+            }
+
+            if (io.MouseWheel != 0.0f) {
+                if (io.MouseWheel > 0.0f) {
+                    s.current_index = std::min(s.current_index + 1, G_SNAP_OPTION_COUNT - 1);
+                } else {
+                    s.current_index = std::max(s.current_index - 1, 0);
+                }
+                ctx.grid_snap_ticks = GetTicksForSnap(G_SNAP_OPTIONS[s.current_index].resolution, ppq);
+            }
+
+            return;
+        }
+
         // --- Glissando / Strumming / Snapped Arps (Shift + G) ---
         struct StrumState {
             std::vector<StrumNoteInfo> notes;
@@ -30,6 +65,7 @@ void NoteEditingControls::HandleKeyboardShortcuts(NoteEditorContext& ctx) {
 
         if (s_strum.Begin(io.KeyShift && ImGui::IsKeyDown(ImGuiKey_G))) {
             auto& s = s_strum.data;
+            uint32_t grid_snap_ticks = ctx.grid_snap_ticks;
 
             if (s_strum.just_started) {
                 for (auto& note : clip.notes) {
@@ -88,6 +124,7 @@ void NoteEditingControls::HandleKeyboardShortcuts(NoteEditorContext& ctx) {
                 }
 
                 uint64_t max_start = clip.duration > 0 ? clip.duration - 1 : 0;
+                uint32_t grid_snap_ticks = ctx.grid_snap_ticks;
 
                 for (auto& note : clip.notes) {
                     if (!note.selected) continue;
@@ -123,6 +160,8 @@ void NoteEditingControls::HandleKeyboardShortcuts(NoteEditorContext& ctx) {
                     ctx.app.SaveUndoPoint();
                     s_scale.data.undo_saved = true;
                 }
+
+                uint32_t grid_snap_ticks = ctx.grid_snap_ticks;
 
                 for (auto& note : clip.notes) {
                     if (!note.selected) continue;

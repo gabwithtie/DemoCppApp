@@ -32,11 +32,15 @@ private:
     float m_px_per_tick = 0.04f;
     uint32_t m_grid_snap_ticks = 240;
 
+    // Internal Playhead State
+    uint64_t m_internal_playhead_tick = 0;
+    bool m_was_playing = false;
+
     Model::Clip* GetSelectedClip();
     static std::string GetPitchName(uint8_t pitch);
     void DrawPianoKeys(ImDrawList* draw_list, ImVec2 origin, float key_width, float total_height);
     void DrawGridBackground(ImDrawList* draw_list, Model::Clip& clip, ImVec2 origin, ImVec2 grid_size);
-    void DrawPlayhead(ImDrawList* draw_list, const Model::Clip& clip, ImVec2 grid_origin, ImVec2 grid_size);
+    void DrawPlayhead(ImDrawList* draw_list, const Model::Clip& clip, ImVec2 grid_origin, ImVec2 grid_size, bool is_focused);
 };
 
 } // namespace gsr::gui

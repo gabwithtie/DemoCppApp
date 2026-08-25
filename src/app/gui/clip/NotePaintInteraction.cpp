@@ -17,6 +17,28 @@ void NotePaintInteraction::SyncVelocityFromSegments(Model::Note& note) {
     }
 }
 
+void NotePaintInteraction::HandleShortcuts() {
+    ImGuiIO& io = ImGui::GetIO();
+
+    // Shift + R + Mouse Scroll = Adjust Brush Radius
+    if (m_radius_session.Begin(io.KeyShift && ImGui::IsKeyDown(ImGuiKey_R))) {
+        if (io.MouseWheel != 0.0f) {
+            brush_radius = std::clamp(brush_radius + io.MouseWheel * 2.0f, 5.0f, 200.0f);
+            io.MouseWheel = 0.0f; // Consume mouse wheel event
+        }
+        return;
+    }
+
+    // Shift + S + Mouse Scroll = Adjust Brush Strength (Slower/Narrower scale)
+    if (m_strength_session.Begin(io.KeyShift && ImGui::IsKeyDown(ImGuiKey_S))) {
+        if (io.MouseWheel != 0.0f) {
+            brush_strength = std::clamp(brush_strength + io.MouseWheel * 0.002f, 0.001f, 0.100f);
+            io.MouseWheel = 0.0f; // Consume mouse wheel event
+        }
+        return;
+    }
+}
+
 void NotePaintInteraction::ProcessPaint(
     gsr::App& app,
     Model::Clip& clip,
@@ -27,13 +49,19 @@ void NotePaintInteraction::ProcessPaint(
     bool canvas_hovered,
     ImDrawList* draw_list
 ) {
+    // Check shortcuts before hovered canvas execution
+    HandleShortcuts();
+
     if (!canvas_hovered) return;
 
     // Render brush indicator overlay
     draw_list->AddCircle(mouse_pos, brush_radius, IM_COL32(255, 255, 255, 180), 32, 1.5f);
     draw_list->AddCircleFilled(mouse_pos, brush_radius, IM_COL32(255, 255, 255, 20));
 
-    if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+    ImGuiIO& io = ImGui::GetIO();
+    bool mouse_moved = (io.MouseDelta.x != 0.0f || io.MouseDelta.y != 0.0f);
+
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && mouse_moved) {
         app.SaveUndoPoint();
         ApplyPaintBrush(app, clip, mouse_pos, grid_origin, px_per_tick, note_height);
     }
@@ -47,6 +75,11 @@ void NotePaintInteraction::ApplyPaintBrush(
     float px_per_tick,
     float note_height
 ) {
+    ImGuiIO& io = ImGui::GetIO();
+
+    bool is_subtract = io.KeyShift;
+    float direction = is_subtract ? -1.0f : 1.0f;
+
     for (auto& note : clip.notes) {
         EnsureNoteSegments(note, SEGMENT_TICK_RES);
 
@@ -74,10 +107,10 @@ void NotePaintInteraction::ApplyPaintBrush(
 
             if (dist <= brush_radius) {
                 float falloff = 1.0f - (dist / brush_radius);
-                float blend = falloff * 0.2f;
+                float delta = direction * brush_strength * falloff;
 
                 note.paint_segments[s] = std::clamp(
-                    note.paint_segments[s] + (brush_strength - note.paint_segments[s]) * blend,
+                    note.paint_segments[s] + delta,
                     0.0f, 1.0f
                 );
                 updated = true;

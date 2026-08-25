@@ -9,7 +9,8 @@ NoteSelectInteraction::NoteSelectInteraction()
         &m_controls_CtrlControls,
         &m_controls_NoteEditingControls,
         &m_controls_NoteSelection,
-        &m_controls_NoteChordControls
+        &m_controls_NoteChordControls,
+        &m_controls_NoteSubdivideControls
       } {}
 
 void NoteSelectInteraction::HandleKeyboardShortcuts(NoteEditorContext& ctx) {
@@ -21,11 +22,12 @@ void NoteSelectInteraction::HandleKeyboardShortcuts(NoteEditorContext& ctx) {
 void NoteSelectInteraction::ProcessSelect(
     gsr::App& app,
     Model::Clip& clip,
+    uint64_t& internal_playhead_tick,
     ImVec2 mouse_pos,
     ImVec2 grid_origin,
     float& px_per_tick,
     float note_height,
-    uint32_t grid_snap_ticks,
+    uint32_t& grid_snap_ticks,
     bool canvas_hovered,
     int hovered_note_idx,
     bool edge_hovered
@@ -63,9 +65,9 @@ void NoteSelectInteraction::ProcessSelect(
             clip.notes.push_back(new_note);
         }
     }
-    // 2. Empty Space Click (Start Box Selection & Move Playhead)
-    else if (canvas_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && hovered_note_idx < 0 && !io.KeyAlt) {
-        app.transport.current_tick = clip.start_tick + snapped_hover_tick;
+    // 2. Empty Space Click (Start Box Selection & Move Internal Playhead)
+    else if (canvas_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && hovered_note_idx < 0) {
+        internal_playhead_tick = std::min(snapped_hover_tick, clip.duration);
         m_is_box_selecting = true;
         m_box_select_start = mouse_pos;
 
@@ -112,7 +114,7 @@ void NoteSelectInteraction::ProcessSelect(
 
     // 4. Box Selection Active State
     if (m_is_box_selecting && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        app.transport.current_tick = clip.start_tick + snapped_hover_tick;
+        internal_playhead_tick = std::min(snapped_hover_tick, clip.duration);
 
         ImVec2 box_min(std::min(m_box_select_start.x, mouse_pos.x), std::min(m_box_select_start.y, mouse_pos.y));
         ImVec2 box_max(std::max(m_box_select_start.x, mouse_pos.x), std::max(m_box_select_start.y, mouse_pos.y));
