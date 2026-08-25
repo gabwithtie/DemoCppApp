@@ -15,6 +15,10 @@ void TimelineInteraction::HandleKeyboardShortcuts(TimelineEditorContext& ctx) {
         return;
     }
 
+    if (ImGui::GetIO().WantTextInput || ImGui::IsAnyItemActive()) {
+        return;
+    }
+
     for (auto* control : m_controls) {
         control->HandleKeyboardShortcuts(ctx);
     }

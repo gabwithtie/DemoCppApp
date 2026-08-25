@@ -3,6 +3,7 @@
 #include "App.hpp"
 #include "model/Track.hpp"
 #include "TimelineInteraction.hpp"
+#include "util/TimelineWarp.hpp"
 #include <imgui.h>
 
 namespace gsr::gui {

@@ -4,6 +4,7 @@ set(CUR_TARGET_NAME gbe_app_${CUR_TARGET_SUBLIBNAME})
 
 set(${CUR_TARGET_NAME}_src
 	"App.cpp"
+	gui/ProjectPicker.cpp
 
 	gui/timeline/TimelineWindow.cpp
 	gui/timeline/ClipManager.cpp
@@ -11,6 +12,7 @@ set(${CUR_TARGET_NAME}_src
 	gui/timeline/controls/TimelineClipboardControls.cpp
 	gui/timeline/controls/TimelineClipEditControls.cpp
 	gui/timeline/controls/TimelineSelectionControls.cpp
+	gui/timeline/util/MidiFileImporter.cpp
 	
 	gui/clip/ClipEditorWindow.cpp
 	gui/clip/NotePaintInteraction.cpp

@@ -9,6 +9,7 @@
 #include "gui/timeline/TimelineWindow.hpp"
 #include "gui/clip/ClipEditorWindow.hpp"
 #include "gui/instrument/InstrumentWindow.hpp"
+#include "app/gui/ProjectPicker.hpp"
 
 #include <imgui.h>
 
@@ -26,6 +27,9 @@ int main(int argc, char** argv) {
     gsr::gui::TimelineWindow timelineWindow(app);
     gsr::gui::ClipEditorWindow clipEditorWindow(app);
     gsr::gui::InstrumentWindow instrumentWindow(app);
+
+    gsr::gui::ProjectPicker projectPicker;
+    bool projectSelected = false;
 
     gsr::MenuBarExtension menuBarExtension;
 
@@ -51,6 +55,12 @@ int main(int argc, char** argv) {
 
         // Evaluate transport timing & app calculations
         const float delta_time = ImGui::GetIO().DeltaTime;
+        if (!projectSelected) {
+            projectSelected = projectPicker.Draw();
+            window.CommitFrame();
+            continue;
+        }
+
         app.process_input();
         app.update(delta_time);
         

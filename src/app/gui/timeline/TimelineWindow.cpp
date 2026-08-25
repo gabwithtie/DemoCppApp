@@ -12,6 +12,24 @@ TimelineWindow::TimelineWindow(gsr::App& app)
     : m_app(app) {}
 
 void TimelineWindow::DrawSelf() {
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        m_app.view.cell_selection = {};
+    }
+
+    const float header_width = ImGui::GetWindowContentRegionMax().x -
+                               ImGui::GetWindowContentRegionMin().x;
+    float header_line_width = 110.0f;
+    const auto place_header_item = [&](float estimated_width) {
+        constexpr float ITEM_SPACING = 8.0f;
+        if (header_line_width + ITEM_SPACING + estimated_width > header_width) {
+            ImGui::NewLine();
+            header_line_width = estimated_width;
+        } else {
+            ImGui::SameLine();
+            header_line_width += ITEM_SPACING + estimated_width;
+        }
+    };
+
     // Top Controls Bar
     if (ImGui::Button("+ Add Track")) {
         m_app.SaveUndoPoint();
@@ -21,7 +39,7 @@ void TimelineWindow::DrawSelf() {
         m_app.view.active_track_index = static_cast<int>(m_app.project.tracks.size() - 1);
     }
 
-    ImGui::SameLine();
+    place_header_item(110.0f);
 
     // Default Tempo Side Input (Active only when no time keys exist)
     if (m_app.project.time_keys.empty()) {
@@ -36,14 +54,30 @@ void TimelineWindow::DrawSelf() {
         ImGui::TextDisabled("BPM: Dynamic (Warp Keys Active)");
     }
 
-    ImGui::SameLine();
+    place_header_item(190.0f);
     ImGui::TextDisabled("| Total Tracks: %zu", m_app.project.tracks.size());
 
-    ImGui::SameLine(0.0f, 20.0f);
+    place_header_item(140.0f);
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::SliderFloat("Track Height", &m_app.view.row_height, 24.0f, 160.0f, "%.0f px");
+
+    place_header_item(90.0f);
+    if (ImGui::Button("Columns")) {
+        ImGui::OpenPopup("TimelineColumns");
+    }
+    if (ImGui::BeginPopup("TimelineColumns")) {
+        ImGui::TextUnformatted("Visible columns");
+        ImGui::Checkbox("M/S", &m_app.view.show_mute_solo_columns);
+        ImGui::Checkbox("Volume", &m_app.view.show_volume_column);
+        ImGui::Checkbox("Pan", &m_app.view.show_pan_column);
+        ImGui::EndPopup();
+    }
+
+    place_header_item(140.0f);
     ImGui::SetNextItemWidth(120.0f);
     ImGui::SliderFloat("Zoom", &m_app.view.px_per_tick, 0.01f, 0.2f, "%.3f px/t");
 
-    ImGui::SameLine();
+    place_header_item(170.0f);
     int scroll_bar_pos = static_cast<int>(m_app.view.scroll_tick / m_app.project.ppq);
     ImGui::SetNextItemWidth(150.0f);
     if (ImGui::SliderInt("Scroll (Beats)", &scroll_bar_pos, 0, 500)) {
@@ -52,9 +86,10 @@ void TimelineWindow::DrawSelf() {
 
     ImGui::Separator();
 
-    constexpr ImGuiTableFlags table_flags = ImGuiTableFlags_BordersInnerH | 
-                                           ImGuiTableFlags_RowBg | 
-                                           ImGuiTableFlags_Resizable;
+    constexpr ImGuiTableFlags table_flags = ImGuiTableFlags_BordersInnerH |
+                                           ImGuiTableFlags_RowBg |
+                                           ImGuiTableFlags_Resizable |
+                                           ImGuiTableFlags_Hideable;
 
     if (ImGui::BeginTable("TimelineTracks", 5, table_flags)) {
         ImGui::TableSetupColumn("Track Name", ImGuiTableColumnFlags_WidthFixed, 140.0f);
@@ -62,6 +97,9 @@ void TimelineWindow::DrawSelf() {
         ImGui::TableSetupColumn("Volume", ImGuiTableColumnFlags_WidthFixed, 90.0f);
         ImGui::TableSetupColumn("Pan", ImGuiTableColumnFlags_WidthFixed, 90.0f);
         ImGui::TableSetupColumn("Timeline / Clip View", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetColumnEnabled(1, m_app.view.show_mute_solo_columns);
+        ImGui::TableSetColumnEnabled(2, m_app.view.show_volume_column);
+        ImGui::TableSetColumnEnabled(3, m_app.view.show_pan_column);
         ImGui::TableHeadersRow();
         
         // --- Time Key Bar Row ---
@@ -79,16 +117,40 @@ void TimelineWindow::DrawSelf() {
         ImGui::TableSetColumnIndex(4);
         m_clip_manager.DrawRuler(m_app, 28.0f);
 
-        constexpr float ROW_HEIGHT = 48.0f;
-
         // --- Tracks View ---
         for (size_t i = 0; i < m_app.project.tracks.size(); ++i) {
             auto& track = m_app.project.tracks[i];
             ImGui::PushID(static_cast<int>(i));
 
-            ImGui::TableNextRow(ImGuiTableRowFlags_None, ROW_HEIGHT);
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, m_app.view.row_height);
 
             ImGui::TableSetColumnIndex(0);
+            ImGui::SetNextItemWidth(24.0f);
+            if (ImGui::SmallButton("X")) {
+                m_app.SaveUndoPoint();
+                m_app.project.tracks.erase(m_app.project.tracks.begin() + static_cast<std::ptrdiff_t>(i));
+
+                const int deleted_track_index = static_cast<int>(i);
+                if (m_app.view.cell_selection.track_index == deleted_track_index) {
+                    m_app.view.cell_selection.track_index = -1;
+                    m_app.view.cell_selection.active = false;
+                } else if (m_app.view.cell_selection.track_index > deleted_track_index) {
+                    --m_app.view.cell_selection.track_index;
+                }
+
+                if (m_app.project.tracks.empty()) {
+                    m_app.view.active_track_index = -1;
+                } else if (m_app.view.active_track_index > deleted_track_index) {
+                    --m_app.view.active_track_index;
+                } else if (m_app.view.active_track_index == deleted_track_index) {
+                    m_app.view.active_track_index = std::min(
+                        static_cast<int>(i), static_cast<int>(m_app.project.tracks.size() - 1));
+                }
+
+                ImGui::PopID();
+                break;
+            }
+            ImGui::SameLine();
             const bool is_active = (m_app.view.active_track_index == static_cast<int>(i));
             if (ImGui::Selectable(track.name.c_str(), is_active, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap)) {
                 m_app.view.active_track_index = static_cast<int>(i);
@@ -108,7 +170,7 @@ void TimelineWindow::DrawSelf() {
             ImGui::SliderFloat("##Pan", &track.pan, -1.0f, 1.0f, "%.2f");
 
             ImGui::TableSetColumnIndex(4);
-            m_clip_manager.DrawTrackTimeline(m_app, track, i, ROW_HEIGHT);
+            m_clip_manager.DrawTrackTimeline(m_app, track, i, m_app.view.row_height);
 
             ImGui::PopID();
         }
@@ -191,7 +253,9 @@ void TimelineWindow::DrawTimeKeyBar() {
         float mouse_x = mouse_pos.x - canvas_pos.x;
         uint64_t clicked_tick = scroll_tick + static_cast<uint64_t>(std::max(0.0f, mouse_x / px_per_tick));
 
-        m_app.project.time_keys.push_back({ clicked_tick, clicked_tick, false });
+        const uint64_t source_tick = static_cast<uint64_t>(std::max(
+            0.0, TargetToSourceTick(m_app.project, static_cast<double>(clicked_tick))));
+        m_app.project.time_keys.push_back({ source_tick, clicked_tick, false });
         RecalculateTempoFromTimeKeys(m_app.project, m_app.transport);
     }
 

@@ -50,12 +50,17 @@ void ClipManager::DrawRuler(gsr::App& app, float ruler_height) {
     draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), IM_COL32(32, 34, 38, 255));
     draw_list->AddLine(ImVec2(canvas_pos.x, canvas_pos.y + canvas_size.y - 1.0f), ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y - 1.0f), IM_COL32(80, 80, 80, 255));
 
-    int start_bar = static_cast<int>(app.view.scroll_tick / ticks_per_bar);
-    int end_bar = start_bar + static_cast<int>(canvas_size.x / (ticks_per_bar * app.view.px_per_tick)) + 2;
+    const double source_scroll_tick = std::max(0.0, TargetToSourceTick(app.project, static_cast<double>(app.view.scroll_tick)));
+    const double source_view_end = TargetToSourceTick(
+        app.project,
+        static_cast<double>(app.view.scroll_tick) + canvas_size.x / app.view.px_per_tick);
+    int start_bar = static_cast<int>(source_scroll_tick / ticks_per_bar);
+    int end_bar = static_cast<int>(source_view_end / ticks_per_bar) + 2;
 
     for (int b = start_bar; b <= end_bar; ++b) {
-        uint64_t bar_tick = static_cast<uint64_t>(b) * ticks_per_bar;
-        float line_x = canvas_pos.x + static_cast<float>(static_cast<int64_t>(bar_tick) - static_cast<int64_t>(app.view.scroll_tick)) * app.view.px_per_tick;
+        const double source_bar_tick = static_cast<double>(b) * ticks_per_bar;
+        const double target_bar_tick = SourceToTargetTick(app.project, source_bar_tick);
+        float line_x = canvas_pos.x + static_cast<float>(target_bar_tick - app.view.scroll_tick) * app.view.px_per_tick;
 
         if (line_x >= canvas_pos.x - 20.0f && line_x <= canvas_pos.x + canvas_size.x) {
             draw_list->AddLine(ImVec2(line_x, canvas_pos.y + 10.0f), ImVec2(line_x, canvas_pos.y + canvas_size.y), IM_COL32(180, 180, 180, 255));
@@ -66,7 +71,9 @@ void ClipManager::DrawRuler(gsr::App& app, float ruler_height) {
             }
 
             for (int beat = 1; beat < 4; ++beat) {
-                float beat_x = line_x + (beat * ppq * app.view.px_per_tick);
+                const double source_beat_tick = source_bar_tick + beat * ppq;
+                const double target_beat_tick = SourceToTargetTick(app.project, source_beat_tick);
+                float beat_x = canvas_pos.x + static_cast<float>(target_beat_tick - app.view.scroll_tick) * app.view.px_per_tick;
                 if (beat_x >= canvas_pos.x && beat_x <= canvas_pos.x + canvas_size.x) {
                     draw_list->AddLine(ImVec2(beat_x, canvas_pos.y + 16.0f), ImVec2(beat_x, canvas_pos.y + canvas_size.y), IM_COL32(100, 100, 100, 255));
                 }
@@ -145,8 +152,10 @@ void ClipManager::DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t t
         app.view.active_track_index = static_cast<int>(track_index);
 
         for (auto& clip : track.clips) {
-            float c_x1 = canvas_pos.x + static_cast<float>(static_cast<int64_t>(clip.start_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
-            float c_x2 = c_x1 + (clip.duration * px_per_tick);
+            const double clip_target_start = SourceToTargetTick(app.project, clip.start_tick);
+            const double clip_target_end = SourceToTargetTick(app.project, clip.start_tick + clip.duration);
+            float c_x1 = canvas_pos.x + static_cast<float>(clip_target_start - scroll_tick) * px_per_tick;
+            float c_x2 = canvas_pos.x + static_cast<float>(clip_target_end - scroll_tick) * px_per_tick;
 
             if (mouse_pos.x >= c_x1 && mouse_pos.x <= c_x2) {
                 clip.selected = true;
@@ -208,8 +217,10 @@ void ClipManager::DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t t
 
     // Draw Track Clips
     for (const auto& clip : track.clips) {
-        float clip_x1 = canvas_pos.x + static_cast<float>(static_cast<int64_t>(clip.start_tick) - static_cast<int64_t>(scroll_tick)) * px_per_tick;
-        float clip_x2 = clip_x1 + (clip.duration * px_per_tick);
+        const double clip_target_start = SourceToTargetTick(app.project, clip.start_tick);
+        const double clip_target_end = SourceToTargetTick(app.project, clip.start_tick + clip.duration);
+        float clip_x1 = canvas_pos.x + static_cast<float>(clip_target_start - scroll_tick) * px_per_tick;
+        float clip_x2 = canvas_pos.x + static_cast<float>(clip_target_end - scroll_tick) * px_per_tick;
 
         if (clip_x2 < canvas_pos.x || clip_x1 > canvas_pos.x + canvas_size.x) continue;
 
@@ -233,8 +244,10 @@ void ClipManager::DrawTrackTimeline(gsr::App& app, Model::Track& track, size_t t
         }
 
         for (const auto& note : clip.notes) {
-            float n_x1 = clip_x1 + (note.start_tick * px_per_tick);
-            float n_x2 = n_x1 + (note.duration * px_per_tick);
+            const double note_target_start = SourceToTargetTick(app.project, clip.start_tick + note.start_tick);
+            const double note_target_end = SourceToTargetTick(app.project, clip.start_tick + note.start_tick + note.duration);
+            float n_x1 = canvas_pos.x + static_cast<float>(note_target_start - scroll_tick) * px_per_tick;
+            float n_x2 = canvas_pos.x + static_cast<float>(note_target_end - scroll_tick) * px_per_tick;
             float norm_p = static_cast<float>(note.pitch) / 127.0f;
             float n_y = (canvas_pos.y + canvas_size.y - 8.0f) - norm_p * (canvas_size.y - 20.0f);
 

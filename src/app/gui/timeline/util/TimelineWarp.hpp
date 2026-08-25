@@ -6,6 +6,54 @@
 
 namespace gsr::gui {
 
+inline double SourceToTargetTick(const Model::Project& project, double source_tick) {
+    if (project.time_keys.empty()) {
+        return source_tick;
+    }
+
+    const auto& keys = project.time_keys;
+    if (source_tick <= keys.front().source_tick) {
+        return source_tick + static_cast<double>(keys.front().target_tick) - keys.front().source_tick;
+    }
+
+    for (size_t i = 1; i < keys.size(); ++i) {
+        const auto& previous = keys[i - 1];
+        const auto& current = keys[i];
+        if (source_tick <= current.source_tick && current.source_tick > previous.source_tick) {
+            const double amount = (source_tick - previous.source_tick) /
+                                  static_cast<double>(current.source_tick - previous.source_tick);
+            return previous.target_tick + amount *
+                   static_cast<double>(current.target_tick - previous.target_tick);
+        }
+    }
+
+    return keys.back().target_tick + source_tick - keys.back().source_tick;
+}
+
+inline double TargetToSourceTick(const Model::Project& project, double target_tick) {
+    if (project.time_keys.empty()) {
+        return target_tick;
+    }
+
+    const auto& keys = project.time_keys;
+    if (target_tick <= keys.front().target_tick) {
+        return target_tick + static_cast<double>(keys.front().source_tick) - keys.front().target_tick;
+    }
+
+    for (size_t i = 1; i < keys.size(); ++i) {
+        const auto& previous = keys[i - 1];
+        const auto& current = keys[i];
+        if (target_tick <= current.target_tick && current.target_tick > previous.target_tick) {
+            const double amount = (target_tick - previous.target_tick) /
+                                  static_cast<double>(current.target_tick - previous.target_tick);
+            return previous.source_tick + amount *
+                   static_cast<double>(current.source_tick - previous.source_tick);
+        }
+    }
+
+    return keys.back().source_tick + target_tick - keys.back().target_tick;
+}
+
 inline void RecalculateTempoFromTimeKeys(Model::Project& project, Transport& transport) {
     // Fallback: Default BPM when no keys exist
     if (project.time_keys.empty()) {
@@ -15,11 +63,17 @@ inline void RecalculateTempoFromTimeKeys(Model::Project& project, Transport& tra
         return;
     }
 
-    // Keep keys chronologically sorted by target timeline position
+    // Keep the source timeline ordered so interpolation remains deterministic.
     std::sort(project.time_keys.begin(), project.time_keys.end(),
         [](const Model::TimeKey& a, const Model::TimeKey& b) {
-            return a.target_tick < b.target_tick;
+            return a.source_tick < b.source_tick;
         });
+
+    for (size_t i = 1; i < project.time_keys.size(); ++i) {
+        if (project.time_keys[i].target_tick <= project.time_keys[i - 1].target_tick) {
+            project.time_keys[i].target_tick = project.time_keys[i - 1].target_tick + 1;
+        }
+    }
 
     project.tempo_map.clear();
 
@@ -28,7 +82,7 @@ inline void RecalculateTempoFromTimeKeys(Model::Project& project, Transport& tra
         project.tempo_map.push_back({ 0, project.default_bpm });
     }
 
-    // Calculate dynamic segment BPM ratios
+    // A stretched target segment has a proportionally slower tempo.
     for (size_t i = 0; i < project.time_keys.size(); ++i) {
         const auto& current = project.time_keys[i];
         double calculated_bpm = project.default_bpm;

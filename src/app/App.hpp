@@ -43,9 +43,13 @@ struct ViewState {
     bool show_timeline{true};
 
     float px_per_tick{0.05f};
-    float row_height{18.0f};
+    float row_height{48.0f};
     uint64_t scroll_tick{0};
     uint8_t scroll_pitch{72};
+
+    bool show_mute_solo_columns{true};
+    bool show_volume_column{true};
+    bool show_pan_column{true};
     
     uint32_t quantize_ticks{240};
     bool snap_to_grid{true};
@@ -102,6 +106,7 @@ public:
     gbe::SerializedData Serialize() override {
         gbe::SerializedData data = gbe::ISerializable::Serialize();
         data.serialized_variables["project"] = gbe::Parser::ExportClassStr(project);
+        data.serialized_variables["view"] = gbe::Parser::ExportClassStr(view);
         return data;
     }
 
@@ -110,6 +115,11 @@ public:
         auto it = data.serialized_variables.find("project");
         if (it != data.serialized_variables.end()) {
             gbe::Parser::PopulateClassStr(project, it->second);
+        }
+
+        auto view_it = data.serialized_variables.find("view");
+        if (view_it != data.serialized_variables.end()) {
+            gbe::Parser::PopulateClassStr(view, view_it->second);
         }
     }
 

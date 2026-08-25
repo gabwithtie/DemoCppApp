@@ -1,7 +1,38 @@
 #include "TimelineClipEditControls.hpp"
+#include "../util/MidiFileImporter.hpp"
+#include "FileDialogue.hpp"
+#include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace gsr::gui {
+
+bool TimelineClipEditControls::ImportMidiAtSelection(TimelineEditorContext& ctx) {
+    const std::string path = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::OPEN);
+    if (path.empty()) return false;
+
+    ImportedMidi imported;
+    if (!ImportMidiFile(path, imported)) return false;
+
+    const auto& selection = ctx.app.view.cell_selection;
+    ctx.app.SaveUndoPoint();
+    Model::Clip clip;
+    clip.name = "MIDI " + std::to_string(ctx.track.clips.size() + 1);
+    clip.start_tick = static_cast<uint64_t>(selection.start_bar) * ctx.ticks_per_bar;
+    clip.type = Model::ClipType::Standard;
+
+    uint64_t imported_duration = 0;
+    const double scale = static_cast<double>(ctx.app.project.ppq) / imported.ppq;
+    for (auto note : imported.notes) {
+        note.start_tick = static_cast<uint64_t>(std::llround(note.start_tick * scale));
+        note.duration = std::max<uint64_t>(1, static_cast<uint64_t>(std::llround(note.duration * scale)));
+        imported_duration = std::max(imported_duration, note.start_tick + note.duration);
+        clip.notes.push_back(note);
+    }
+    clip.duration = std::max<uint64_t>(static_cast<uint64_t>(selection.num_bars) * ctx.ticks_per_bar, imported_duration);
+    ctx.track.clips.push_back(std::move(clip));
+    return true;
+}
 
 void TimelineClipEditControls::HandleKeyboardShortcuts(TimelineEditorContext& ctx) {
     auto& sel = ctx.app.view.cell_selection;
@@ -43,6 +74,7 @@ void TimelineClipEditControls::HandleKeyboardShortcuts(TimelineEditorContext& ct
 
 void TimelineClipEditControls::DrawContextMenu(TimelineEditorContext& ctx) {
     auto& sel = ctx.app.view.cell_selection;
+    if (!sel.active || sel.track_index != static_cast<int>(ctx.track_index)) return;
     uint64_t target_start = sel.start_bar * ctx.ticks_per_bar;
     uint64_t target_dur = sel.num_bars * ctx.ticks_per_bar;
 
@@ -112,6 +144,17 @@ void TimelineClipEditControls::DrawContextMenu(TimelineEditorContext& ctx) {
     if (has_overlap) ImGui::EndDisabled();
 
     ImGui::Separator();
+
+    if (ImGui::MenuItem("Import MIDI Here...")) {
+        if (!ImportMidiAtSelection(ctx)) {
+            ImGui::OpenPopup("MIDI Import Failed");
+        }
+    }
+    if (ImGui::BeginPopup("MIDI Import Failed")) {
+        ImGui::TextUnformatted("Could not load a MIDI file with note events.");
+        if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
 }
 
 } // namespace gsr::gui

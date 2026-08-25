@@ -168,18 +168,32 @@ void ClipEditorWindow::DrawSelf() {
 
     constexpr float KEY_WIDTH = 55.0f;
     const float total_grid_height = 128.0f * m_note_height;
-    const float total_grid_width = std::max(ImGui::GetContentRegionAvail().x - KEY_WIDTH, clip->duration * m_px_per_tick + 200.0f);
+    float pending_vertical_scroll = -1.0f;
 
-    ImGui::BeginChild("PianoRollScrollArea", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::BeginChild("PianoRollScrollArea", ImVec2(0, 0), true);
 
     ImVec2 canvas_origin = ImGui::GetCursorScreenPos();
+    const float outer_width = ImGui::GetContentRegionAvail().x;
+    const float outer_scroll_y = ImGui::GetScrollY();
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 mouse_pos = io.MousePos;
 
     DrawPianoKeys(draw_list, canvas_origin, KEY_WIDTH, total_grid_height);
 
-    ImVec2 grid_origin(canvas_origin.x + KEY_WIDTH, canvas_origin.y);
+    ImGui::SetCursorScreenPos(ImVec2(canvas_origin.x + KEY_WIDTH, canvas_origin.y));
+    ImGui::BeginChild(
+        "PianoRollGrid",
+        ImVec2(std::max(outer_width - KEY_WIDTH, 50.0f), total_grid_height),
+        true,
+        ImGuiWindowFlags_HorizontalScrollbar
+    );
+
+    ImVec2 grid_origin = ImGui::GetCursorScreenPos();
+    const float total_grid_width = std::max(
+        ImGui::GetContentRegionAvail().x,
+        clip->duration * m_px_per_tick + 200.0f
+    );
     ImVec2 grid_size(total_grid_width, total_grid_height);
 
     ImGui::SetCursorScreenPos(grid_origin);
@@ -189,8 +203,21 @@ void ClipEditorWindow::DrawSelf() {
     // Zoom & Pan Wheel Controls
     if (canvas_hovered) {
         if (io.KeyShift && io.MouseWheel != 0.0f) {
+            const float old_px_per_tick = m_px_per_tick;
+            const float mouse_tick = (mouse_pos.x - grid_origin.x + ImGui::GetScrollX()) / old_px_per_tick;
             float zoom_factor = (io.MouseWheel > 0.0f) ? 1.05f : 0.95f;
             m_px_per_tick = std::clamp(m_px_per_tick * zoom_factor, 0.005f, 0.2f);
+            ImGui::SetScrollX(mouse_tick * m_px_per_tick - (mouse_pos.x - grid_origin.x));
+        }
+        if (io.KeyAlt && io.MouseWheel != 0.0f) {
+            const float old_note_height = m_note_height;
+            const float mouse_pitch = (mouse_pos.y - grid_origin.y + outer_scroll_y) / old_note_height;
+            float zoom_factor = (io.MouseWheel > 0.0f) ? 1.05f : 0.95f;
+            m_note_height = std::clamp(m_note_height * zoom_factor, 8.0f, 28.0f);
+            pending_vertical_scroll = mouse_pitch * m_note_height - (mouse_pos.y - grid_origin.y);
+        }
+        if (!io.KeyShift && !io.KeyAlt && io.MouseWheel != 0.0f) {
+            pending_vertical_scroll = outer_scroll_y - io.MouseWheel * ImGui::GetFontSize() * 3.0f;
         }
         if (io.KeyAlt && io.MouseDelta.x != 0.0f) {
             ImGui::SetScrollX(ImGui::GetScrollX() - io.MouseDelta.x);
@@ -245,6 +272,10 @@ void ClipEditorWindow::DrawSelf() {
 
     DrawPlayhead(draw_list, *clip, grid_origin, grid_size);
 
+    ImGui::EndChild();
+    if (pending_vertical_scroll >= 0.0f) {
+        ImGui::SetScrollY(pending_vertical_scroll);
+    }
     ImGui::EndChild();
 }
 

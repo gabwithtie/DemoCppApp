@@ -19,7 +19,7 @@ public:
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("New Project", "Ctrl+N")) {
                 App::GetInstance().SaveUndoPoint();
-                App::GetInstance().project = Model::Project{};
+                ProjectLoader::StartNewProject();
             }
 
             if (ImGui::MenuItem("Load Project", "Ctrl+O")) {
