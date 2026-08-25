@@ -23,6 +23,7 @@ struct AudioNodeData {
     float parameter_1{0.5f};
     float parameter_2{0.5f};
     bool enabled{true};
+    size_t effect_index{0};
 };
 
 class AudioEffectsGraphWindow : public app::GuiWindow {
@@ -41,13 +42,21 @@ private:
     std::vector<app::Link> m_links;
     std::unordered_map<app::PinId, app::Pin> m_pin_lookup;
     std::unordered_map<app::NodeId, AudioNodeData> m_audio_data;
+    std::vector<app::NodeCreationEntry> m_creation_entries;
+    std::vector<float> m_waveform_values;
+    app::NodeId m_waveform_node{0};
     int m_next_id{1000};
+    int m_graph_track_index{-2};
 
     Model::Track* GetSelectedTrack();
     void BuildDefaultGraph();
-    void AddEffectNode(const std::string& name);
-    void AddCombinerNode();
+    void AddEffectNode(const std::string& name, ImVec2 position, bool persist = true);
+    void AddCombinerNode(ImVec2 position);
+    void SyncGraphToTrack(Model::Track* track, int track_index);
+    void RebuildGraphLinks();
+    void SaveGraphData(Model::Track& track);
     void RenderNodeCustomControls(app::Node& node);
+    void DrawWaveform(app::Node& node);
 };
 
 } // namespace gsr::gui

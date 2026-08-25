@@ -73,6 +73,8 @@ public:
     void render_ui();
     void shutdown();
 
+    audio::AudioEngine& GetAudioEngine() { return audio_engine; }
+
     // Undo / Redo System
     void SaveUndoPoint() {
         m_undo_stack.push_back(Serialize());

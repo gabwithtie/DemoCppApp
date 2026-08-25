@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include "../../gui/features/nodeeditor/GenericNodeEditor.hpp"
 
 namespace Model {
 
@@ -30,14 +31,6 @@ struct Clip {
     ClipType type{ClipType::Standard};
 };
 
-// Add to src/app/model/Track.hpp
-struct Effect {
-    std::string name{"Default Effect"};
-    bool enabled{true};
-    float parameter_1{0.5f};
-    float parameter_2{0.5f};
-};
-
 struct Track {
     std::string name{"Track 1"};
     uint8_t midi_channel{0};
@@ -53,8 +46,7 @@ struct Track {
     float instrument_gain{1.0f};
     bool needs_reload{false}; // Signal flag for audio thread to rebuild instrument
 
-    std::vector<Effect> midi_effects;
-    std::vector<Effect> audio_effects;
+    app::GraphData audio_graph;
     std::vector<Clip> clips;
     std::vector<Note> notes;
 };

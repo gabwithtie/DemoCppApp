@@ -150,7 +150,8 @@ void AudioEngine::AudioCallback(float* output_buffer, uint32_t frame_count) {
 
         //TODO: Handle instrument change
 
-        m_track_processors[i]->ProcessAudioBlock(output_buffer, frame_count, m_sample_rate, track.volume);
+        m_track_processors[i]->ProcessAudioBlock(output_buffer, frame_count, m_sample_rate, track.volume,
+                             track.audio_graph);
     }
 }
 
