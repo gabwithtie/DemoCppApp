@@ -8,6 +8,7 @@
 #include "gui/MenuBarExtension.hpp"
 
 #include "gui/train/TrainWindow.h"
+#include "app/gui/station/StationWindow.hpp"
 #include "app/gui/ProjectPicker.h"
 
 #include <imgui.h>
@@ -26,6 +27,7 @@ int main(int argc, char** argv) {
     gsr::MenuBarExtension menuBarExtension;
 
     gsr::TrainWindow trainWindow;
+    gsr::StationWindow stationWindow;
     gsr::ProjectPicker projectPicker;
 
 
@@ -33,6 +35,9 @@ int main(int argc, char** argv) {
     app::GuiManager::WindowAssignmentOverride windowoverride = {
         .topLeft = {
             &trainWindow
+        },
+        .topRght = {
+            &stationWindow
         },
         .bottomLeft = {
             //&window
