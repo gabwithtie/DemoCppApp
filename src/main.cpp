@@ -7,7 +7,6 @@
 // Application GUI Extensions
 #include "gui/MenuBarExtension.hpp"
 
-#include "gui/train/TrainWindow.h"
 #include "app/gui/ProjectPicker.h"
 
 #include <imgui.h>
@@ -25,14 +24,13 @@ int main(int argc, char** argv) {
     // 3. Instantiate GUI Windows
     gsr::MenuBarExtension menuBarExtension;
 
-    gsr::TrainWindow trainWindow;
     gsr::ProjectPicker projectPicker;
 
 
     // 4. Configure Layout Assignments via Designated Initializers
     app::GuiManager::WindowAssignmentOverride windowoverride = {
         .topLeft = {
-            &trainWindow
+            //&window
         },
         .bottomLeft = {
             //&window
