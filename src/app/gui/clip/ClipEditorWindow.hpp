@@ -1,16 +1,14 @@
-// ClipEditorWindow.hpp
 #pragma once
 
 #include "../gui/main/GuiWindow.h"
 #include "App.hpp"
-#include "NoteSelectInteraction.hpp"
+#include "ClipEditorInput.hpp"
 #include "NotePaintInteraction.hpp"
+#include "NoteSelectInteraction.hpp"
 #include "model/Track.hpp"
 #include <imgui.h>
 
 namespace gsr::gui {
-
-enum class PianoRollEditMode { Select, Paint };
 
 class ClipEditorWindow : public app::GuiWindow {
 public:
@@ -22,6 +20,7 @@ public:
 
 private:
     gsr::App& m_app;
+    ClipEditorInput m_input_handler;
     
     // Mode Interaction Handlers
     PianoRollEditMode m_edit_mode = PianoRollEditMode::Select;

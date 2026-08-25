@@ -9,6 +9,7 @@
 #include "gui/timeline/TimelineWindow.hpp"
 #include "gui/clip/ClipEditorWindow.hpp"
 #include "gui/instrument/InstrumentWindow.hpp"
+#include "gui/instrument/AudioEffectsGraphWindow.hpp"
 #include "app/gui/ProjectPicker.hpp"
 
 #include <imgui.h>
@@ -27,6 +28,7 @@ int main(int argc, char** argv) {
     gsr::gui::TimelineWindow timelineWindow(app);
     gsr::gui::ClipEditorWindow clipEditorWindow(app);
     gsr::gui::InstrumentWindow instrumentWindow(app);
+    gsr::gui::AudioEffectsGraphWindow audioeffectsgraphWindow(app);
 
     gsr::gui::ProjectPicker projectPicker;
     bool projectSelected = false;
@@ -37,6 +39,7 @@ int main(int argc, char** argv) {
     app::GuiManager::WindowAssignmentOverride windowoverride = {
         .topLeft = {
             &clipEditorWindow,
+            &audioeffectsgraphWindow
         },
         .bottomLeft = {
             &timelineWindow,

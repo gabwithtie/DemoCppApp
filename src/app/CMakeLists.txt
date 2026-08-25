@@ -15,6 +15,7 @@ set(${CUR_TARGET_NAME}_src
 	gui/timeline/util/MidiFileImporter.cpp
 	
 	gui/clip/ClipEditorWindow.cpp
+	gui/clip/ClipEditorInput.cpp
 	gui/clip/NotePaintInteraction.cpp
 	gui/clip/NoteSelectInteraction.cpp
 	
@@ -25,6 +26,7 @@ set(${CUR_TARGET_NAME}_src
 	gui/clip/controls/NoteSubdivideControls.cpp
 	
 	gui/instrument/InstrumentWindow.cpp
+	gui/instrument/AudioEffectsGraphWindow.cpp
 	
 	audio/AudioEngine.cpp
 	audio/MiniAudioImpl.cpp

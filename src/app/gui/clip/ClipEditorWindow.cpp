@@ -1,89 +1,54 @@
 #include "ClipEditorWindow.hpp"
-#include "gui/timeline/util/TimelineWarp.hpp" // Add this include
+#include "gui/timeline/util/TimelineWarp.hpp"
 #include <algorithm>
 #include <cmath>
 #include <string>
 
 namespace gsr::gui
 {
-    //Returns the other key that was pressed other than shift.
-    ImGuiKey IsOnlyShiftDown()
-    {
-        ImGuiIO& io = ImGui::GetIO();
-
-        // 1. Shift must be active, and no other modifier flag (Ctrl, Alt, Super) can be set
-        if (io.KeyMods != ImGuiMod_Shift)
-            return ImGuiKey::ImGuiKey_None;
-
-        // 2. Scan standard keys, skipping modifier aliases, mouse, and gamepad inputs
-        for (int k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END; ++k)
-        {
-            ImGuiKey key = static_cast<ImGuiKey>(k);
-
-            // Skip physical modifier keys (Left/Right Shift, Ctrl, Alt, Super)
-            if (key >= ImGuiKey_LeftCtrl && key <= ImGuiKey_RightSuper) continue;
-
-            // Skip ImGui virtual modifier alias keys (ModCtrl, ModShift, ModAlt, ModSuper)
-            if (key >= ImGuiKey_ReservedForModCtrl && key <= ImGuiKey_ReservedForModSuper) continue;
-
-            // Skip mouse buttons and gamepad inputs
-            if (key >= ImGuiKey_MouseLeft && key <= ImGuiKey_GamepadRStickRight) continue;
-
-            if (ImGui::IsKeyDown(key))
-                return key;
-        }
-
-        return ImGuiKey::ImGuiKey_None;
-    }
-
     ImU32 GetNotePaintColor(float val_127, bool is_selected)
     {
-        float r = 0.0f, g = 0.0f, b = 0.0f;
-        float alpha = 255.0f;
+        // Color Stop Table: { Value, ImVec4(R, G, B, Alpha) }
+        static const struct ColorStop { float val; ImVec4 col; } stops[] = {
+            {   0.0f, {   0.0f,   0.0f, 255.0f,  55.0f } }, // Faded Blue
+            {  10.0f, {   0.0f,   0.0f, 255.0f, 255.0f } }, // Solid Blue
+            {  70.0f, {   0.0f, 255.0f,   0.0f, 255.0f } }, // Solid Green
+            {  80.0f, {   0.0f, 255.0f,   0.0f, 255.0f } }, // Solid Green
+            { 130.0f, { 255.0f,   0.0f,   0.0f, 255.0f } }  // Solid Red
+        };
 
-        if (val_127 <= 70.0f)
+        auto lerp = [](const ImVec4& a, const ImVec4& b, float t) {
+            return ImVec4(
+                a.x + t * (b.x - a.x),
+                a.y + t * (b.y - a.y),
+                a.z + t * (b.z - a.z),
+                a.w + t * (b.w - a.w)
+            );
+        };
+
+        val_127 = std::clamp(val_127, 0.0f, 120.0f);
+
+        // Find active range and lerp
+        ImVec4 col = stops[4].col;
+        for (size_t i = 0; i < 4; ++i)
         {
-            // Pure Blue below 70: Alpha scales down linearly as value approaches 0
-            r = 0.0f; g = 0.0f; b = 255.0f;
-            float norm = std::clamp(val_127 / 70.0f, 0.0f, 1.0f);
-            alpha = norm * 200.0f + 55.0f; // Scale alpha between 55 and 255
-        }
-        else if (val_127 < 90.0f)
-        {
-            // Transition: Pure Blue (70) -> Pure Green (90)
-            float t = (val_127 - 70.0f) / 20.0f;
-            r = 0.0f;
-            g = t * 255.0f;
-            b = (1.0f - t) * 255.0f;
-        }
-        else if (val_127 <= 110.0f)
-        {
-            // 100% Green between 90 and 110
-            r = 0.0f; g = 255.0f; b = 0.0f;
-        }
-        else if (val_127 < 120.0f)
-        {
-            // Transition: Pure Green (110) -> Pure Red (120)
-            float t = (val_127 - 110.0f) / 10.0f;
-            r = t * 255.0f;
-            g = (1.0f - t) * 255.0f;
-            b = 0.0f;
-        }
-        else
-        {
-            // 100% Red at 120+
-            r = 255.0f; g = 0.0f; b = 0.0f;
+            if (val_127 <= stops[i + 1].val)
+            {
+                float t = (val_127 - stops[i].val) / (stops[i + 1].val - stops[i].val);
+                col = lerp(stops[i].col, stops[i + 1].col, t);
+                break;
+            }
         }
 
-        // Selection boost
+        // Selection highlight boost
         if (is_selected)
         {
-            r = std::min(255.0f, r + 70.0f);
-            g = std::min(255.0f, g + 70.0f);
-            b = std::min(255.0f, b + 70.0f);
+            col.x = std::min(255.0f, col.x + 70.0f);
+            col.y = std::min(255.0f, col.y + 70.0f);
+            col.z = std::min(255.0f, col.z + 70.0f);
         }
 
-        return IM_COL32(static_cast<int>(r), static_cast<int>(g), static_cast<int>(b), static_cast<int>(alpha));
+        return IM_COL32(static_cast<int>(col.x), static_cast<int>(col.y), static_cast<int>(col.z), static_cast<int>(col.w));
     }
 
     ClipEditorWindow::ClipEditorWindow(gsr::App &app) : m_app(app) {}
@@ -187,7 +152,6 @@ namespace gsr::gui
 
     void ClipEditorWindow::DrawPlayhead(ImDrawList *draw_list, const Model::Clip &clip, ImVec2 grid_origin, ImVec2 grid_size, bool is_focused)
     {
-        // 1. Draw Internal Edit Playhead (Cyan) - ONLY WHEN FOCUSED
         if (is_focused)
         {
             float int_playhead_x = grid_origin.x + (m_internal_playhead_tick * m_px_per_tick);
@@ -201,7 +165,6 @@ namespace gsr::gui
             }
         }
 
-        // 2. Draw Main Software Playhead (Red)
         double current_source_tick = TargetToSourceTick(m_app.project, static_cast<double>(m_app.transport.current_tick));
         int64_t rel_playhead_tick = static_cast<int64_t>(current_source_tick) - static_cast<int64_t>(clip.start_tick);
         if (rel_playhead_tick >= 0)
@@ -228,10 +191,8 @@ namespace gsr::gui
             return;
         }
 
-        // Check if the current window or any of its children are focused
         bool is_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
-        // Sync Software Playhead strictly when entering Play state AND focused
         bool is_playing = m_app.transport.state == PlaybackState::Playing;
         if (is_playing && !m_was_playing && is_focused)
         {
@@ -249,12 +210,11 @@ namespace gsr::gui
         ImGui::SetNextItemWidth(100.0f);
         ImGui::SliderFloat("Zoom H", &m_px_per_tick, 0.005f, 0.1f, "%.3f");
 
-        // DrawSelf() inside ClipEditorWindow.cpp
         ImGui::SameLine();
         uint32_t ppq = m_app.project.ppq;
 
         int snap_idx = -1;
-        const char* snap_labels[G_SNAP_OPTION_COUNT];
+        const char *snap_labels[G_SNAP_OPTION_COUNT];
         for (int i = 0; i < G_SNAP_OPTION_COUNT; ++i)
         {
             snap_labels[i] = G_SNAP_OPTIONS[i].label;
@@ -273,7 +233,6 @@ namespace gsr::gui
             }
         }
 
-        // Edit Mode Combo
         ImGui::SameLine();
         int mode_idx = static_cast<int>(m_edit_mode);
         const char *modes[] = {"Select Mode", "Paint Mode"};
@@ -294,13 +253,14 @@ namespace gsr::gui
                 m_paint_interaction.target = static_cast<PaintTarget>(target_idx);
             }
 
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(90.0f);
-        ImGui::SliderFloat("Radius", &m_paint_interaction.brush_radius, 5.0f, 200.0f, "%.0f px");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(90.0f);
+            ImGui::SliderFloat("Radius", &m_paint_interaction.brush_radius, 5.0f, 200.0f, "%.0f px");
 
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(90.0f);
-        ImGui::SliderFloat("Strength", &m_paint_interaction.brush_strength, 0.001f, 0.100f, "%.3f");        }
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(90.0f);
+            ImGui::SliderFloat("Strength", &m_paint_interaction.brush_strength, 0.001f, 0.100f, "%.3f");
+        }
 
         ImGui::Separator();
 
@@ -321,30 +281,9 @@ namespace gsr::gui
         const float grid_viewport_w = std::max(outer_width - KEY_WIDTH, 50.0f);
         bool scroll_area_hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
 
-        // Process Vertical Zoom & Pan BEFORE defining canvas heights
-        if (scroll_area_hovered || ImGui::IsMouseDown(ImGuiMouseButton_Middle))
-        {
-            if (io.KeyAlt && io.MouseWheel != 0.0f)
-            {
-                const float old_note_height = m_note_height;
-                const float half_vh = outer_height * 0.5f;
-                const float center_pitch_unit = (outer_scroll_y + half_vh) / old_note_height;
-
-                float zoom_factor = (io.MouseWheel > 0.0f) ? 1.05f : 0.95f;
-                m_note_height = std::clamp(m_note_height * zoom_factor, 8.0f, 28.0f);
-
-                pending_vertical_scroll = std::max(0.0f, center_pitch_unit * m_note_height - half_vh);
-            }
-            if (!io.KeyShift && !io.KeyAlt && io.MouseWheel != 0.0f)
-            {
-                pending_vertical_scroll = std::max(0.0f, outer_scroll_y - io.MouseWheel * ImGui::GetFontSize() * 3.0f);
-            }
-            if (ImGui::IsMouseDown(ImGuiMouseButton_Middle) && io.MouseDelta.y != 0.0f)
-            {
-                const float base_y = (pending_vertical_scroll >= 0.0f) ? pending_vertical_scroll : outer_scroll_y;
-                pending_vertical_scroll = std::max(0.0f, base_y - io.MouseDelta.y);
-            }
-        }
+        // Process Vertical Input
+        m_input_handler.ProcessVerticalScrollAndZoom(
+            scroll_area_hovered, outer_height, outer_scroll_y, m_note_height, pending_vertical_scroll);
 
         const float total_grid_height = 128.0f * m_note_height;
 
@@ -361,34 +300,9 @@ namespace gsr::gui
         );
         ImGui::PopStyleVar();
 
-        //===== INPUT HANDLING =====//
-
-        // Process Horizontal Zoom & Pan
-        if (scroll_area_hovered || ImGui::IsMouseDown(ImGuiMouseButton_Middle))
-        {
-            auto other_key = IsOnlyShiftDown();
-            auto other_key_is_scroll = other_key == ImGuiKey::ImGuiKey_MouseWheelY;
-
-            if (other_key_is_scroll && io.MouseWheel != 0.0f)
-            {
-                const float old_px_per_tick = m_px_per_tick;
-                const float half_vw = grid_viewport_w * 0.5f;
-                const float current_scroll_x = ImGui::GetScrollX();
-                const float center_tick = (current_scroll_x + half_vw) / old_px_per_tick;
-
-                float zoom_factor = (io.MouseWheel > 0.0f) ? 1.05f : 0.95f;
-                m_px_per_tick = std::clamp(m_px_per_tick * zoom_factor, 0.005f, 0.2f);
-
-                pending_horizontal_scroll = std::max(0.0f, center_tick * m_px_per_tick - half_vw);
-                io.MouseWheel = 0.0f;
-                io.MouseWheelH = 0.0f;
-            }
-            if (ImGui::IsMouseDown(ImGuiMouseButton_Middle) && io.MouseDelta.x != 0.0f)
-            {
-                const float base_x = (pending_horizontal_scroll >= 0.0f) ? pending_horizontal_scroll : ImGui::GetScrollX();
-                pending_horizontal_scroll = std::max(0.0f, base_x - io.MouseDelta.x);
-            }
-        }
+        // Process Horizontal Input
+        m_input_handler.ProcessHorizontalScrollAndZoom(
+            scroll_area_hovered, grid_viewport_w, m_px_per_tick, pending_horizontal_scroll);
 
         ImVec2 grid_origin = ImGui::GetCursorScreenPos();
         const float total_grid_width = std::max(
@@ -401,20 +315,9 @@ namespace gsr::gui
         ImGui::InvisibleButton("PianoRollCanvas", grid_size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
         bool canvas_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
 
-        // Position Internal Playhead (Alt + Left Click/Drag on canvas)
-        if (canvas_hovered && io.KeyAlt && ImGui::IsMouseDown(ImGuiMouseButton_Left))
-        {
-            float rel_x = mouse_pos.x - grid_origin.x;
-            if (rel_x >= 0.0f)
-            {
-                uint64_t target_tick = static_cast<uint64_t>(rel_x / m_px_per_tick);
-                if (m_grid_snap_ticks > 0)
-                {
-                    target_tick = (target_tick / m_grid_snap_ticks) * m_grid_snap_ticks;
-                }
-                m_internal_playhead_tick = std::min(target_tick, clip->duration);
-            }
-        }
+        // Process Playhead Input
+        m_input_handler.ProcessPlayheadPositioning(
+            canvas_hovered, mouse_pos, grid_origin, m_px_per_tick, m_grid_snap_ticks, clip->duration, m_internal_playhead_tick);
 
         if (pending_horizontal_scroll >= 0.0f)
         {
@@ -423,7 +326,7 @@ namespace gsr::gui
 
         DrawGridBackground(draw_list, *clip, grid_origin, grid_size);
 
-        // Draw Notes
+        // Draw Notes & Calculate Hovering
         int hovered_note_idx = -1;
         bool edge_hovered = false;
 
@@ -443,7 +346,6 @@ namespace gsr::gui
             float note_w = n_max.x - n_min.x;
             float note_h = n_max.y - n_min.y;
 
-            // Retrieve target value scaled to 0-127
             float val_norm = note.paint_segments.empty() ? 0.0f : note.paint_segments[0];
             float val_127 = std::clamp(val_norm * 127.0f, 0.0f, 127.0f);
 
@@ -453,11 +355,9 @@ namespace gsr::gui
             draw_list->AddRectFilled(n_min, n_max, fill_col, 2.0f);
             draw_list->AddRect(n_min, n_max, border_col, 2.0f);
 
-            // Display target value text if the note box is large enough at current zoom level
             std::string val_str = std::to_string(static_cast<int>(std::round(val_127)));
             ImVec2 text_size = ImGui::CalcTextSize(val_str.c_str());
 
-            // Requires 4px horizontal and 2px vertical padding minimum
             if (note_w >= text_size.x + 4.0f && note_h >= text_size.y + 2.0f)
             {
                 ImVec2 text_pos(
@@ -475,17 +375,11 @@ namespace gsr::gui
             }
         }
 
-        // Process interactions
-        if (m_edit_mode == PianoRollEditMode::Paint)
-        {
-            m_paint_interaction.ProcessPaint(
-                m_app, *clip, mouse_pos, grid_origin, m_px_per_tick, m_note_height, canvas_hovered, draw_list);
-        }
-        else
-        {
-            m_select_interaction.ProcessSelect(
-                m_app, *clip, m_internal_playhead_tick, mouse_pos, grid_origin, m_px_per_tick, m_note_height, m_grid_snap_ticks, canvas_hovered, hovered_note_idx, edge_hovered);
-        }
+        // Process Note Interactions (Paint/Select)
+        m_input_handler.ProcessNoteInteractions(
+            m_app, *clip, m_edit_mode, m_paint_interaction, m_select_interaction,
+            m_internal_playhead_tick, mouse_pos, grid_origin, m_px_per_tick, m_note_height,
+            m_grid_snap_ticks, canvas_hovered, hovered_note_idx, edge_hovered, draw_list);
 
         DrawPlayhead(draw_list, *clip, grid_origin, grid_size, is_focused);
 

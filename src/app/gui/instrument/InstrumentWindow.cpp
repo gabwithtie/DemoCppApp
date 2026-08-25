@@ -85,64 +85,6 @@ namespace gsr::gui
                 ImGui::SliderFloat("Output Gain", &track->instrument_gain, 0.0f, 2.0f, "%.2fx");
             }
         }
-
-        // --- MIDI FX Chain ---
-        if (ImGui::CollapsingHeader("MIDI Effects", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            if (ImGui::Button("+ Add MIDI FX"))
-            {
-                track->midi_effects.push_back({"Arpeggiator", true, 0.5f, 0.5f});
-            }
-            for (size_t i = 0; i < track->midi_effects.size(); ++i)
-            {
-                auto &fx = track->midi_effects[i];
-                ImGui::PushID(static_cast<int>(i) + 100);
-                ImGui::Checkbox("##Enable", &fx.enabled);
-                ImGui::SameLine();
-                if (ImGui::TreeNode(fx.name.c_str()))
-                {
-                    ImGui::SliderFloat("Rate", &fx.parameter_1, 0.0f, 1.0f);
-                    if (ImGui::Button("Delete"))
-                    {
-                        track->midi_effects.erase(track->midi_effects.begin() + i);
-                        ImGui::TreePop();
-                        ImGui::PopID();
-                        break;
-                    }
-                    ImGui::TreePop();
-                }
-                ImGui::PopID();
-            }
-        }
-
-        // --- Audio FX Chain ---
-        if (ImGui::CollapsingHeader("Audio Effects", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            if (ImGui::Button("+ Add Audio FX"))
-            {
-                track->audio_effects.push_back({"Reverb", true, 0.3f, 0.7f});
-            }
-            for (size_t i = 0; i < track->audio_effects.size(); ++i)
-            {
-                auto &fx = track->audio_effects[i];
-                ImGui::PushID(static_cast<int>(i) + 200);
-                ImGui::Checkbox("##Enable", &fx.enabled);
-                ImGui::SameLine();
-                if (ImGui::TreeNode(fx.name.c_str()))
-                {
-                    ImGui::SliderFloat("Mix", &fx.parameter_1, 0.0f, 1.0f);
-                    if (ImGui::Button("Delete"))
-                    {
-                        track->audio_effects.erase(track->audio_effects.begin() + i);
-                        ImGui::TreePop();
-                        ImGui::PopID();
-                        break;
-                    }
-                    ImGui::TreePop();
-                }
-                ImGui::PopID();
-            }
-        }
     }
 
 } // namespace gsr::gui
