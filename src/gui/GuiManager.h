@@ -18,6 +18,7 @@ namespace app {
 			bottomRight
 			};
 			std::vector<GuiWindow*> hiddens;
+			GuiWindow* startupWindow = nullptr;
 		};
 	private:
 		bool guiStartframeInit = false;
@@ -29,8 +30,11 @@ namespace app {
 
 		};
 		WindowAssignmentOverride assignmentOverride;
+		GuiWindow* startupWindow = nullptr;
 
 	public:
+		MenuBar& GetMenuBar() { return menuBar; }
+
 		GuiManager(WindowAssignmentOverride = {});
 		void Draw();
 	};

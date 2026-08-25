@@ -81,8 +81,32 @@ FetchContent_Declare(glm
     UPDATE_COMMAND "" 
 )
 
+# --- TinySoundFont (tsf.h) ---
+set(TSF_DIR "${CMAKE_BINARY_DIR}/_deps/tinysoundfont")
+
+if(NOT EXISTS "${TSF_DIR}/tsf.h")
+    message(STATUS "Downloading tsf.h...")
+    file(DOWNLOAD
+        "https://raw.githubusercontent.com/schellingb/TinySoundFont/master/tsf.h"
+        "${TSF_DIR}/tsf.h"
+        STATUS download_status
+    )
+endif()
+
+if(NOT TARGET tinysoundfont)
+    add_library(tinysoundfont INTERFACE)
+    target_include_directories(tinysoundfont INTERFACE "${TSF_DIR}")
+endif()
+
+FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG        0.11.21 # Use the latest stable tag
+    UPDATE_COMMAND "" 
+)
+
 #==============POPULATE & MAKE AVAILABLE================#
-FetchContent_MakeAvailable(SDL2 glm glaze imgui nfd stb glew)
+FetchContent_MakeAvailable(SDL2 glm glaze imgui nfd stb glew miniaudio)
 
 #===================FURTHER SETUP==================#
 add_library(imgui STATIC
@@ -94,12 +118,12 @@ add_library(imgui STATIC
         # Include the GFX backend requested in vcpkg.json
         ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-    )
-    target_include_directories(imgui PUBLIC
-        ${imgui_SOURCE_DIR} #for other libraries that depend on imgui
-    )
-    target_link_libraries(imgui PUBLIC SDL2::SDL2-static)
-    add_library(imgui::imgui ALIAS imgui)
+)
+target_include_directories(imgui PUBLIC
+    ${imgui_SOURCE_DIR} #for other libraries that depend on imgui
+)
+target_link_libraries(imgui PUBLIC SDL2::SDL2-static)
+add_library(imgui::imgui ALIAS imgui)
 
 #=========================# INIT CODE #=========================#
 add_executable(${PROJECT_NAME} "src/main.cpp")
@@ -131,7 +155,6 @@ add_subdirectory("src/app")
 target_link_libraries(app_internal_libs INTERFACE gbe::app::app)
 
 add_subdirectory("src/tools")
-target_link_libraries(app_internal_libs INTERFACE gbe::tools)
 
 # Link everything seamlessly
 target_link_libraries(${PROJECT_NAME} PRIVATE app_internal_libs)
@@ -144,6 +167,7 @@ target_link_libraries(${PROJECT_NAME}
     libglew_static
     imgui
     glaze::glaze
+    tinysoundfont
 )
 
 #=========================# FINAL COPY COMMANDS #=========================#

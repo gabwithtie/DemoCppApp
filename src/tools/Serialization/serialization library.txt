@@ -1,0 +1,1155 @@
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\AutoSerializer.hpp 
+================================================== 
+ 
+#pragma once
+
+#include <functional>
+#include <string>
+#include <utility>
+
+#include "SerializedData.hpp"
+#include "File/Parser.hpp"
+
+#include "PropertyDrawer.hpp"
+#include "IAutoSerializer.hpp"
+
+#include <typeinfo>
+
+namespace gbe {
+
+    // =======================================================
+    // PRIMARY TEMPLATE: Only handles default Serialization
+    // =======================================================
+    template <typename T>
+    class AutoSerializer : public AutoSerializerBase<T> {
+    public:
+        // Inherit constructors from AutoSerializerBase
+        using AutoSerializerBase<T>::AutoSerializerBase;
+
+        inline void Serialize(SerializedData& data) override {
+            data.serialized_variables.insert_or_assign(this->m_id, Parser::ExportClassStr(this->m_target));
+        }
+
+        inline void Deserialize(SerializedData& data) override {
+            auto it = data.serialized_variables.find(this->m_id);
+            if (it != data.serialized_variables.end()) {
+                Parser::PopulateClassStr(this->m_target, it->second);
+            }
+
+            if (this->m_on_init) {
+                this->m_on_init(this->m_target);
+            }
+        }
+    };
+
+    // --- Explicit Specialization Declarations ---
+    // INT
+    template<>
+    void AutoSerializer<int>::Serialize(SerializedData& data) {
+        data.serialized_variables.insert_or_assign(m_id, std::to_string(m_target));
+    }
+
+    template<>
+    void AutoSerializer<int>::Deserialize(SerializedData& data) {
+        if (data.serialized_variables.find(m_id) != data.serialized_variables.end()) {
+            m_target = std::stoi(data.serialized_variables[m_id]);
+        }
+        if (m_on_init) {
+            m_on_init(m_target);
+        }
+    }
+
+    // BOOL
+    template<>
+    void AutoSerializer<bool>::Serialize(SerializedData& data) {
+        data.serialized_variables.insert_or_assign(m_id, m_target ? "1" : "0");
+    }
+
+    template<>
+    void AutoSerializer<bool>::Deserialize(SerializedData& data) {
+        if (data.serialized_variables.find(m_id) != data.serialized_variables.end()) {
+            std::string val = data.serialized_variables[m_id];
+            m_target = (val == "1" || val == "true");
+        }
+        if (m_on_init) {
+            m_on_init(m_target);
+        }
+    }
+
+    // FLOAT
+    template<>
+    void AutoSerializer<float>::Serialize(SerializedData& data) {
+        data.serialized_variables.insert_or_assign(m_id, std::to_string(m_target));
+    }
+
+    template<>
+    void AutoSerializer<float>::Deserialize(SerializedData& data) {
+        if (data.serialized_variables.find(m_id) != data.serialized_variables.end()) {
+            m_target = std::stof(data.serialized_variables[m_id]);
+        }
+        if (m_on_init) {
+            m_on_init(m_target);
+        }
+    }
+
+    // STRING
+    template<>
+    void AutoSerializer<std::string>::Serialize(SerializedData& data) {
+        data.serialized_variables.insert_or_assign(m_id, m_target);
+    }
+
+    template<>
+    void AutoSerializer<std::string>::Deserialize(SerializedData& data) {
+        if (data.serialized_variables.find(m_id) != data.serialized_variables.end()) {
+            m_target = data.serialized_variables[m_id];
+        }
+        if (m_on_init) {
+            m_on_init(m_target);
+        }
+    }
+
+    // Macro with display name AND callback
+#define GBE_SERIALIZE_FIELD_W_NAME_CB(var_name, display_name, callback) \
+        gbe::AutoSerializer<std::decay_t<decltype(var_name)>> _auto_serializer_##var_name{this, #var_name, display_name, var_name, callback}
+
+    // Macro with display name (no callback)
+#define GBE_SERIALIZE_FIELD_W_NAME(var_name, display_name) \
+        GBE_SERIALIZE_FIELD_W_NAME_CB(var_name, display_name, nullptr)
+
+    // Macro with variable name as default display name AND callback
+#define GBE_SERIALIZE_FIELD_W_CB(var_name, callback) \
+        GBE_SERIALIZE_FIELD_W_NAME_CB(var_name, #var_name, callback)
+
+    // Macro using variable name as default display name (no callback)
+#define GBE_SERIALIZE_FIELD(var_name) \
+        GBE_SERIALIZE_FIELD_W_NAME(var_name, #var_name)
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\AutoSerializer_ObjectRef.hpp 
+================================================== 
+ 
+ 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\AutoSerializer_Vector.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "AutoSerializer.hpp"
+#include "TypeRegistry.hpp"
+
+#include <vector>
+#include <memory>
+#include <string>
+#include <typeinfo>
+#include <type_traits>
+
+namespace gbe {
+
+    template <typename T>
+    class AutoSerializer<std::vector<std::unique_ptr<T>>> : public AutoSerializerBase<std::vector<std::unique_ptr<T>>> {
+    public:
+        // Automatically inherits constructors, destructor, Get(), and DrawInspector()!
+        using AutoSerializerBase<std::vector<std::unique_ptr<T>>>::AutoSerializerBase;
+
+        void Serialize(SerializedData& data) override {
+            data.serialized_variables.insert_or_assign(this->m_id + ".count", std::to_string(this->m_target.size()));
+
+            for (size_t i = 0; i < this->m_target.size(); ++i) {
+                if (!this->m_target[i]) continue;
+
+                SerializedData child_data = this->m_target[i]->Serialize();
+                std::string type_name = typeid(*this->m_target[i]).name();
+                child_data.serialized_variables.insert_or_assign("__type", type_name);
+
+                std::string prefix = this->m_id + "[" + std::to_string(i) + "].";
+                for (const auto& [key, value] : child_data.serialized_variables) {
+                    data.serialized_variables.insert_or_assign(prefix + key, value);
+                }
+            }
+        }
+
+        void Deserialize(SerializedData& data) override {
+            auto count_it = data.serialized_variables.find(this->m_id + ".count");
+            if (count_it == data.serialized_variables.end()) return;
+
+            size_t count = std::stoul(count_it->second);
+
+            this->m_target.clear();
+            this->m_target.reserve(count);
+
+            for (size_t i = 0; i < count; ++i) {
+                std::string prefix = this->m_id + "[" + std::to_string(i) + "].";
+                SerializedData child_data;
+
+                for (const auto& [key, value] : data.serialized_variables) {
+                    if (key.rfind(prefix, 0) == 0) {
+                        std::string child_key = key.substr(prefix.length());
+                        child_data.serialized_variables.insert_or_assign(child_key, value);
+                    }
+                }
+
+                auto type_it = child_data.serialized_variables.find("__type");
+                if (type_it == child_data.serialized_variables.end()) continue;
+
+                ISerializable* raw_obj = TypeRegistry::Instantiate(type_it->second, child_data);
+                if (raw_obj) {
+                    raw_obj->Deserialize(child_data);
+
+                    if constexpr (std::is_same_v<T, ISerializable>) {
+                        this->m_target.emplace_back(raw_obj);
+                    }
+                    else {
+                        T* typed_obj = dynamic_cast<T*>(raw_obj);
+                        if (typed_obj) {
+                            this->m_target.emplace_back(typed_obj);
+                        }
+                        else {
+                            delete raw_obj;
+                        }
+                    }
+                }
+            }
+
+            if (this->m_on_init) {
+                this->m_on_init(this->m_target);
+            }
+        }
+    };
+
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\GUID.hpp 
+================================================== 
+ 
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <string>
+#include <random>
+#include <sstream>
+#include <iomanip>
+#include <functional>
+#include <algorithm>
+#include <cstring>
+#include <cctype>
+
+namespace gbe {
+
+    class GUID {
+    public:
+        // 128-bit storage (16 bytes)
+        using ValueType = std::array<uint8_t, 16>;
+
+        // Default constructor creates an Empty GUID (all zeros)
+        GUID() {
+            m_bytes.fill(0);
+        }
+
+        explicit GUID(const ValueType& bytes) : m_bytes(bytes) {}
+
+        // Parse from string format: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        explicit GUID(const std::string& str) {
+            *this = FromString(str);
+        }
+
+        // --- Static Helper Factories ---
+
+        /**
+         * @brief Generates an RFC 4122 Version 4 compliant random GUID.
+         */
+        static GUID Generate() {
+            GUID guid;
+
+            // Thread-safe high-performance random generation
+            static thread_local std::random_device rd;
+            static thread_local std::mt19937_64 gen(rd());
+            static std::uniform_int_distribution<uint64_t> dis;
+
+            uint64_t low = dis(gen);
+            uint64_t high = dis(gen);
+
+            std::memcpy(guid.m_bytes.data(), &low, 8);
+            std::memcpy(guid.m_bytes.data() + 8, &high, 8);
+
+            // RFC 4122 Version 4 (Random) & Variant bits specification
+            guid.m_bytes[6] = (guid.m_bytes[6] & 0x0F) | 0x40; // Version 4
+            guid.m_bytes[8] = (guid.m_bytes[8] & 0x3F) | 0x80; // Variant 1
+
+            return guid;
+        }
+
+        static GUID Empty() {
+            return GUID();
+        }
+
+        static GUID FromString(const std::string& str) {
+            GUID guid;
+            std::string hex;
+            hex.reserve(32);
+
+            for (char c : str) {
+                if (std::isxdigit(static_cast<unsigned char>(c))) {
+                    hex.push_back(c);
+                }
+            }
+
+            if (hex.length() != 32) {
+                return GUID::Empty(); // Fallback on invalid format
+            }
+
+            for (size_t i = 0; i < 16; ++i) {
+                std::string byteString = hex.substr(i * 2, 2);
+                guid.m_bytes[i] = static_cast<uint8_t>(std::stoul(byteString, nullptr, 16));
+            }
+
+            return guid;
+        }
+
+        // --- Utilities ---
+
+        std::string ToString() const {
+            if (IsEmpty()) return "00000000-0000-0000-0000-000000000000";
+
+            std::stringstream ss;
+            ss << std::hex << std::setfill('0');
+
+            for (size_t i = 0; i < 16; ++i) {
+                if (i == 4 || i == 6 || i == 8 || i == 10) {
+                    ss << "-";
+                }
+                ss << std::setw(2) << static_cast<int>(m_bytes[i]);
+            }
+
+            return ss.str();
+        }
+
+        const ValueType& GetBytes() const { return m_bytes; }
+        bool IsEmpty() const { return *this == Empty(); }
+
+        // --- Operators ---
+
+        bool operator==(const GUID& other) const { return m_bytes == other.m_bytes; }
+        bool operator!=(const GUID& other) const { return m_bytes != other.m_bytes; }
+        bool operator<(const GUID& other) const { return m_bytes < other.m_bytes; }
+
+        explicit operator bool() const { return !IsEmpty(); }
+
+    private:
+        ValueType m_bytes{};
+    };
+
+    // Output stream integration (e.g. std::cout << guid)
+    inline std::ostream& operator<<(std::ostream& os, const GUID& guid) {
+        os << guid.ToString();
+        return os;
+    }
+
+} // namespace gbe
+
+// --- std::hash specialization for std::unordered_map support ---
+namespace std {
+    template <>
+    struct hash<gbe::GUID> {
+        size_t operator()(const gbe::GUID& guid) const noexcept {
+            // Fast bit-shift combining hash of two 64-bit halves
+            const uint64_t* p64 = reinterpret_cast<const uint64_t*>(guid.GetBytes().data());
+            size_t h1 = std::hash<uint64_t>{}(p64[0]);
+            size_t h2 = std::hash<uint64_t>{}(p64[1]);
+            return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
+        }
+    };
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\IAutoSerializer.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "SerializedData.hpp"
+#include "File/Parser.hpp"
+#include "PropertyDrawer.hpp"
+
+namespace gbe {
+
+    class ISerializable;
+
+    struct IAutoSerializer {
+
+        std::string m_id;
+        std::string m_display_name;
+
+        virtual void Serialize(SerializedData& data) = 0;
+        virtual void Deserialize(SerializedData& data) = 0;
+
+        // --- Type Erasure API for Editor ---
+        virtual bool DrawInspector() = 0;
+
+
+        virtual ~IAutoSerializer() = default;
+        virtual void RemoveFromInspector(ISerializable* _owner) = 0;
+    };
+
+    // =======================================================
+    // BASE TEMPLATE: Holds all boilerplate, constructor, UI
+    // =======================================================
+    template <typename T>
+    class AutoSerializerBase : public IAutoSerializer {
+    public:
+        using InitCallback = std::function<void(T&)>;
+
+    protected:
+        T& m_target;
+        ISerializable* m_owner;
+        InitCallback m_on_init;
+
+    public:
+        AutoSerializerBase(ISerializable* owner,
+            std::string id,
+            std::string display_name,
+            T& target,
+            InitCallback on_init = nullptr)
+            : m_owner(owner), m_target(target), m_on_init(std::move(on_init))
+        {
+            m_id = std::move(id);
+            m_display_name = std::move(display_name);
+
+            if (m_owner) {
+                m_owner->RegisterProperty(this);
+            }
+        }
+
+        // Strictly delete copy operations
+        AutoSerializerBase(const AutoSerializerBase&) = delete;
+        AutoSerializerBase& operator=(const AutoSerializerBase&) = delete;
+
+        ~AutoSerializerBase() override {
+            if (m_owner) {
+                RemoveFromInspector(m_owner);
+            }
+        }
+
+        void RemoveFromInspector(ISerializable* _owner) override {
+            _owner->UnRegisterProperty(this);
+        }
+
+        T& Get() { return m_target; }
+        const T& Get() const { return m_target; }
+
+
+
+        // --- Static Template Dispatch for ImGui ---
+        bool DrawInspector() override {
+            bool changed = PropertyDrawer<T>::Draw(m_display_name, m_target);
+
+            if (changed && m_on_init) {
+                m_on_init(m_target);
+            }
+            return changed;
+        }
+    };
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\InstanceInitializer.hpp 
+================================================== 
+ 
+#pragma once
+
+#include <memory>
+#include <string>
+#include <typeinfo>
+
+namespace gbe {
+	class IInstanceInitializer {
+	public:
+		virtual std::string GetTypeHash() = 0;
+	};
+
+	/// <summary>
+	/// Engine-side interface to execute additional routing and set-up for newly created engine objects.
+	/// </summary>
+	template<typename T>
+	class InstanceInitializer : public IInstanceInitializer {
+	private:
+		inline static InstanceInitializer* instance = nullptr;
+		
+	protected:
+
+		void AssignSelfAsInitializer() {
+			instance = this;
+		}
+
+
+	public:
+		inline InstanceInitializer() {
+			AssignSelfAsInitializer();
+		}
+		virtual ~InstanceInitializer() = default;
+
+		virtual T* InitializeImpl(std::unique_ptr<T>) = 0;
+		virtual std::string GetTypeHash() override{
+			return typeid(T).name();
+		}
+
+		inline static T* Initialize(std::unique_ptr<T> newobj) {
+			return instance->InitializeImpl(std::move(newobj));
+		}
+	};
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\ISerializable.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "SerializedData.hpp"
+
+#include <list>
+#include <functional>
+#include <filesystem>
+
+#include "GUID.hpp"
+
+namespace gbe {
+	struct IAutoSerializer;
+
+	class ISerializable {
+	private:
+		GUID m_guid = GUID::Generate();
+	public:
+
+		GUID GetGUID() const { return m_guid; }
+		inline virtual std::string GetLabel() { return ""; }
+
+		//SERIALIZATION
+		virtual SerializedData Serialize();
+		virtual void Deserialize(SerializedData& data);
+		inline void DeserializeFromFile(std::string absolute_path) { DeserializeFromFile(std::filesystem::path(absolute_path)); }
+		void DeserializeFromFile(std::filesystem::path absolute_path);
+		inline void SerializeToFile(std::string absolute_path) { SerializeToFile(std::filesystem::path(absolute_path)); }
+		void SerializeToFile(std::filesystem::path absolute_path);
+		//DESERIALIZATION
+		SerializedData* mostRecentData = nullptr;
+		ISerializable(SerializedData& data);
+		ISerializable();
+		~ISerializable();
+
+		//INSPECTOR + SERIALIZATION
+		std::vector<IAutoSerializer*> properties;
+		void RegisterProperty(IAutoSerializer*);
+		void UnRegisterProperty(IAutoSerializer*);
+	};
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\ObjectRef.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "GUID.hpp"
+#include "SceneRegistry.hpp"
+
+#include "AutoSerializer.hpp"
+#include "File/Parser.hpp"
+
+namespace gbe {
+
+    template <typename T>
+    class ObjectRef {
+    public:
+        ObjectRef() = default;
+
+        ObjectRef(T* instance) {
+            Set(instance);
+        }
+
+        ObjectRef(const GUID& guid) : m_targetGuid(guid) {}
+
+        // Sets or updates the referenced object
+        void Set(T* instance) {
+            m_cachedPtr = instance;
+            m_targetGuid = instance ? instance->GetGUID() : GUID::Empty();
+        }
+
+        // Sets the target GUID and invalidates cached pointer for re-resolution
+        void SetGUID(const GUID& guid) {
+            m_targetGuid = guid;
+            m_cachedPtr = nullptr;
+        }
+
+        // Lazy-resolves target pointer via SceneRegistry
+        T* Get() const {
+            if (!m_cachedPtr && m_targetGuid != GUID::Empty()) {
+                m_cachedPtr = SceneRegistry::GetInstance().Resolve<T>(m_targetGuid);
+            }
+            return m_cachedPtr;
+        }
+
+        T* operator->() const { return Get(); }
+        T& operator*() const { return *Get(); }
+        explicit operator bool() const { return Get() != nullptr; }
+
+        bool operator==(const ObjectRef<T>& other) const { return GetTargetGUID() == other.GetTargetGUID(); }
+        bool operator!=(const ObjectRef<T>& other) const { return !(*this == other); }
+
+        GUID GetTargetGUID() const { return m_targetGuid; }
+
+    private:
+        GUID m_targetGuid = GUID::Empty();
+        mutable T* m_cachedPtr = nullptr;
+    };
+
+} // namespace gbe
+
+
+namespace gbe {
+
+    template <typename T>
+    class AutoSerializer<ObjectRef<T>> : public AutoSerializerBase<ObjectRef<T>> {
+    public:
+        using AutoSerializerBase<ObjectRef<T>>::AutoSerializerBase;
+
+        void Serialize(SerializedData& data) override {
+            // Serialize the target object's GUID as a string
+            GUID targetGuid = this->m_target.GetTargetGUID();
+            data.serialized_variables.insert_or_assign(this->m_id, Parser::ExportClassStr(targetGuid));
+        }
+
+        void Deserialize(SerializedData& data) override {
+            auto it = data.serialized_variables.find(this->m_id);
+            if (it != data.serialized_variables.end()) {
+                GUID restoredGuid = GUID::Empty();
+                Parser::PopulateClassStr(restoredGuid, it->second);
+                this->m_target.SetGUID(restoredGuid);
+            }
+
+            if (this->m_on_init) {
+                this->m_on_init(this->m_target);
+            }
+        }
+    };
+
+} // namespace gbe 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\PropertyDrawer.hpp 
+================================================== 
+ 
+#pragma once
+#include <string>
+
+namespace gbe {
+
+    // Primary template (Fallback if no ImGui drawer specialization exists)
+    template <typename T>
+    struct PropertyDrawer {
+        //static bool Draw(const std::string& label, T& target)
+		//Force the compiler to throw an error if no specialization exists for the type T
+    };
+
+    template <> struct PropertyDrawer<float>;
+    template <> struct PropertyDrawer<int>;
+    template <> struct PropertyDrawer<bool>;
+    template <> struct PropertyDrawer<std::string>;
+
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\SceneRegistry.hpp 
+================================================== 
+ 
+#pragma once
+
+#include <unordered_map>
+#include "GUID.hpp"
+
+namespace gbe {
+
+    class ISerializable;
+
+    class SceneRegistry {
+    public:
+        static SceneRegistry& GetInstance() {
+            static SceneRegistry instance;
+            return instance;
+        }
+
+        /// Returns reference to all registered objects currently in memory
+        const std::unordered_map<GUID, ISerializable*>& GetRegistry() const {
+            return m_registry;
+        }
+
+        void Register(const GUID& guid, ISerializable* ptr) {
+            if (guid != GUID::Empty() && ptr != nullptr) {
+                m_registry[guid] = ptr;
+            }
+        }
+
+        void Unregister(const GUID& guid) {
+            if (guid != GUID::Empty()) {
+                m_registry.erase(guid);
+            }
+        }
+
+        template<typename T>
+        T* Resolve(const GUID& guid) const {
+            if (guid == GUID::Empty()) return nullptr;
+
+            auto it = m_registry.find(guid);
+            if (it != m_registry.end()) {
+                return dynamic_cast<T*>(it->second);
+            }
+            return nullptr;
+        }
+
+        void Clear() {
+            m_registry.clear();
+        }
+
+    private:
+        SceneRegistry() = default;
+        ~SceneRegistry() = default;
+
+        std::unordered_map<GUID, ISerializable*> m_registry;
+    };
+
+} // namespace gbe 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\SerializedData.hpp 
+================================================== 
+ 
+#pragma once
+
+#include <unordered_map>
+#include <string>
+
+namespace gbe {
+	struct SerializedData {
+		std::string label = ""; //usually optional, for debugging purposes
+		std::unordered_map<std::string, std::string> serialized_variables;
+	};
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\TypeRegistry.hpp 
+================================================== 
+ 
+#pragma once
+
+#include "SerializedData.hpp"
+#include "ISerializable.hpp"
+#include "InstanceInitializer.hpp"
+
+#include <string>
+#include <unordered_map>
+#include <functional>
+#include <typeinfo>
+#include <vector>
+#include <memory>
+#include <map>
+
+namespace gbe {
+	class TypeRegistry {
+		typedef std::function<ISerializable* (SerializedData&)> TypeDeserializerFunction;
+		typedef std::function<ISerializable* ()> TypeCreatorFunction;
+
+	public:
+		struct RegistryEntry {
+			std::string name;
+			TypeDeserializerFunction factory;
+		};
+		struct RegistryEntryEditor {
+			std::string name;
+			std::string category;
+			TypeCreatorFunction factory;
+		};
+
+		inline static void RegisterInstanceInitializer(IInstanceInitializer* initializer) {
+			static std::unordered_map<std::string, IInstanceInitializer*> initializers;
+			initializers[initializer->GetTypeHash()] = initializer;
+		}
+
+		inline static std::vector<RegistryEntry>& GetEntries() {
+			static std::vector<RegistryEntry> entries;
+			return entries;
+		}
+
+		inline static std::vector<RegistryEntryEditor>& GetEditorEntries() {
+			static std::vector<RegistryEntryEditor> editorEntries;
+			return editorEntries;
+		}
+
+		static void Register(const std::string& name, TypeDeserializerFunction factory) {
+			// Check if name already exists
+			for (auto& entry : GetEntries()) {
+				if (entry.name == name) {
+					entry.factory = factory; // Overwrite old factory
+					return;
+				}
+			}
+			// If it's a unique name, add it
+			GetEntries().push_back({ name, factory });
+		}
+
+		static void RegisterEditor(const std::string& name, const std::string& category, TypeCreatorFunction factory) {
+			// Check if name already exists
+			for (auto& entry : GetEditorEntries()) {
+				if (entry.name == name) {
+					entry.category = category; // Update category if it changed
+					entry.factory = factory;   // Overwrite old factory
+					return;
+				}
+			}
+			// If it's a unique name, add it
+			GetEditorEntries().push_back({ name, category, factory });
+		}
+
+
+		static ISerializable* Instantiate(const std::string& name, SerializedData& data) {
+			// Fixed: passed by reference (&) to prevent heavy string copies
+			for (const auto& entry : GetEntries())
+			{
+				if (entry.name == name) {
+					return entry.factory(data);
+				}
+			}
+			return nullptr; // Good practice to explicitly return nullptr if not found
+		}
+	};
+
+
+	/*
+	* @brief Registers a type instance initializer with the global Game Engine (GBE) registry.
+	*
+	* Creates a static instance of the specified type and automatically executes a lambda
+	* function during static initialization to register its address.
+	*
+	* @param Type The class or struct type to create an instance of and register.
+	*/
+#define GBE_REGISTER_INITIALIZER(Type) \
+    inline static Type Type##_instance; \
+    static bool Type##_registered = []() { \
+        gbe::TypeRegistry::RegisterInstanceInitializer(&Type##_instance); \
+        return true; \
+    }()
+
+	/*
+	* @brief Instantiates a managed object and registers it with the category instance initializer.
+	*
+	* Allocates a unique pointer of the specified type using the provided arguments, assigns
+	* the raw pointer to a local variable, and transfers ownership to the GBE framework.
+	*
+	* @param Name The variable name assigned to the resulting raw pointer.
+	* @param Type The class or struct type to instantiate.
+	* @param CategoryType The GBE subsystem category responsible for initialization management.
+	* @param Parameters The constructor arguments enclosed in parentheses, e.g., (arg1, arg2).
+	*/
+#define GBE_CREATE(Name, Type, CategoryType, Parameters) \
+    Type* Name = nullptr; \
+    { \
+        auto newobj_ptr = std::make_unique<Type>Parameters; \
+        Name = newobj_ptr.get(); \
+        gbe::InstanceInitializer<CategoryType>::Initialize(std::move(newobj_ptr));\
+    }
+	/*
+	* @brief Registers a serializable C++ type with the engine registry for dynamic instantiation.
+	*
+	* Binds the RTTI type name to a creation factory lambda. When triggered, the factory reads
+	* serialized data, constructs the object using GBE_CREATE, and returns the raw pointer.
+	*
+	* @param Type The serializable class or struct type to register.
+	* @param "Base" The type that you have made a InstanceInitialize<T> for. Usually is the grandfather class that inherits off of ISerializable directly.
+	*/
+#define GBE_REGISTER_SERIALIZED_TYPE(Type, CategoryType) \
+    static bool Type##_registered = []() { \
+        gbe::TypeRegistry::Register(typeid(Type).name(), [](gbe::SerializedData& data) { \
+            GBE_CREATE(newobj, Type, CategoryType, (data)); \
+            return newobj; \
+        }); \
+        return true; \
+    }()
+
+	/// @brief Creates the required constructors of a default serializable
+	/// @param "Type" Target type of the current class.
+	/// @param "Base" Base type of the current class.
+#define GBE_GENERATE_SERIALIZER_CONSTRUCTOR(Type, Base) \
+    public: \
+    inline Type(gbe::SerializedData& data) : Base(data) {GBE_Init();} \
+    protected:
+
+	/// @brief Creates the required constructors of a default serializable.
+	/// @param "Type" Target type of the current class.
+	/// @param "Base" Base type of the current class.
+	/// @param "NameGetter" Lambda to get the name of this instance.
+#define GBE_GENERATE_SERIALIZER_CONSTRUCTOR_W_NAME(Type, Base, NameGetter) \
+    public: \
+    inline Type(gbe::SerializedData& data) : Base(data) {GBE_Init();} \
+	inline virtual std::string GetLabel() override {return NameGetter();} \
+    protected:
+}
+ 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\AutoSerializer.cpp 
+================================================== 
+ 
+ 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\ISerializable.cpp 
+================================================== 
+ 
+#include "ISerializable.hpp"
+#include "File/Parser.hpp"
+#include "IAutoSerializer.hpp"
+#include "SceneRegistry.hpp"
+
+gbe::ISerializable::ISerializable()
+{
+	// Automatically register default generated GUID
+	SceneRegistry::GetInstance().Register(m_guid, this);
+}
+
+gbe::ISerializable::ISerializable(gbe::SerializedData& data)
+{
+	// Register before deserialization
+	SceneRegistry::GetInstance().Register(m_guid, this);
+	Deserialize(data);
+}
+
+gbe::ISerializable::~ISerializable()
+{
+	// Cleanup registration on destruction
+	SceneRegistry::GetInstance().Unregister(m_guid);
+}
+
+gbe::SerializedData gbe::ISerializable::Serialize() {
+	SerializedData data = {};
+
+	// FIX 1: Explicitly write GUID to serialized_variables
+	data.serialized_variables["m_guid"] = m_guid.ToString();
+
+	for (const auto& prop : this->properties)
+	{
+		prop->Serialize(data);
+	}
+
+	return data;
+}
+
+void gbe::ISerializable::Deserialize(SerializedData& data)
+{
+	// Unregister initial temporary GUID
+	SceneRegistry::GetInstance().Unregister(m_guid);
+
+	// FIX 2: Read persistent GUID back from SerializedData
+	auto it = data.serialized_variables.find("m_guid");
+	if (it != data.serialized_variables.end())
+	{
+		m_guid = GUID::FromString(it->second);
+	}
+
+	// FIX 3: Register restored persistent GUID BEFORE property deserialization
+	// so reference resolution works during property deserialization
+	SceneRegistry::GetInstance().Register(m_guid, this);
+
+	for (auto& prop : this->properties)
+	{
+		prop->Deserialize(data);
+	}
+}
+
+void gbe::ISerializable::DeserializeFromFile(std::filesystem::path absolute_path)
+{
+	SerializedData data = {};
+	data.label = absolute_path.string();
+	Parser::PopulateClass(data, absolute_path);
+	this->Deserialize(data);
+}
+
+void gbe::ISerializable::SerializeToFile(std::filesystem::path absolute_path)
+{
+	SerializedData data = Serialize();
+	data.label = absolute_path.string();
+	Parser::ExportClass(data, absolute_path);
+}
+
+void gbe::ISerializable::RegisterProperty(IAutoSerializer* newprop)
+{
+	this->properties.push_back(newprop);
+}
+
+void gbe::ISerializable::UnRegisterProperty(IAutoSerializer* prop)
+{
+	for (size_t i = 0; i < this->properties.size(); i++)
+	{
+		if (this->properties[i] == prop) {
+			this->properties.erase(this->properties.begin() + i);
+			break;
+		}
+	}
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\File\FileUtil.hpp 
+================================================== 
+ 
+#pragma once
+
+#include <string>
+#include <iostream>
+#include <sstream>
+#include <fstream>
+#include <filesystem>
+
+namespace gbe {
+	class FileUtil {
+	public:
+		inline static bool ValidateDirectory(std::filesystem::path directory) {
+			// Get the parent path (which is the folder/directory)
+			std::filesystem::path folderPath = directory.parent_path();
+
+			if (folderPath.empty())
+				return true;
+
+			return std::filesystem::create_directories(folderPath);
+		}
+
+		inline static void Copy(std::filesystem::path from, std::filesystem::path to) {
+			ValidateDirectory(to);
+
+			std::ifstream src(from, std::ios::binary);
+			std::ofstream dst(to, std::ios::binary);
+
+			if (!src.is_open()) {
+				std::cerr << "Error: Could not open source file: " << from << std::endl;
+			}
+			if (!dst.is_open()) {
+				std::cerr << "Error: Could not open destination file: " << to << std::endl;
+			}
+
+			dst << src.rdbuf();
+
+			src.close();
+			dst.close();
+		}
+	};
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\File\Parser.hpp 
+================================================== 
+ 
+#pragma once
+
+// 1. Define NOMINMAX for any Windows headers included after this point
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+// 2. Strip existing max/min macros if Windows headers were included BEFORE this point
+#ifdef max
+#undef max
+#endif
+
+#ifdef min
+#undef min
+#endif
+
+#include <glaze/glaze.hpp>
+
+#include <string>
+#include <iostream>
+#include <sstream>
+#include <fstream>
+#include <filesystem>
+
+#include "FileUtil.hpp"
+
+namespace gbe {
+	class Parser {
+	public:
+
+		template<class TImportData>
+		static void PopulateClassStr(TImportData& target, std::string data) {
+			TImportData datareceiver;
+			auto ec = glz::read < glz::opts{ .error_on_unknown_keys = false } > (datareceiver, data);
+			target = datareceiver;
+			std::cout << ec << std::endl;
+		}
+
+		template<class TExportData>
+		static std::string ExportClassStr(const TExportData& target) {
+			std::string out_string;
+			glz::write < glz::opts{ .error_on_unknown_keys = false } > (target, out_string);
+			return out_string;
+		}
+
+		template<class TImportData>
+		static bool PopulateClass(TImportData& target, std::filesystem::path asset_path) {
+			std::string buffer;
+			TImportData datareceiver;
+			auto ec = glz::read_file_json < glz::opts{ .error_on_unknown_keys = false } > (datareceiver, asset_path.string(), buffer);
+			target = datareceiver;
+
+			if (ec) {
+				std::cout << ec << std::endl;
+				return false;
+			}
+
+			return true;
+		}
+
+		template<class TExportData>
+		static void ExportClass(const TExportData& target, std::filesystem::path asset_path) {
+			FileUtil::ValidateDirectory(asset_path);
+			std::ofstream file(asset_path);
+
+			std::string out_string;
+			glz::write < glz::opts{ .error_on_unknown_keys = false } > (target, out_string);
+
+			file << out_string;
+
+			file.close();
+		}
+	};
+} 
+ 
+================================================== 
+FILE: C:\repos\DemoCppApp\src\tools\Serialization\Meta\GUID_meta.hpp 
+================================================== 
+ 
+#pragma once
+
+#include <glaze/glaze.hpp>
+#include "GUID.hpp"
+
+namespace glz {
+
+    template <>
+    struct meta<gbe::GUID> {
+        using T = gbe::GUID;
+
+        static constexpr auto read = [](T& self, const std::string& str) {
+            self = T::FromString(str);
+            };
+
+        static constexpr auto write = [](const T& self) -> std::string {
+            return self.ToString();
+            };
+
+        static constexpr auto value = glz::custom<read, write>;
+    };
+
+} // namespace glz 
+ 

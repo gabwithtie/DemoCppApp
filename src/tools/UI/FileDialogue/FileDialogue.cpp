@@ -3,6 +3,9 @@
 #include "portable-file-dialogs.h"
 #include <vector>
 
+#include <cctype> // Required for std::tolower
+
+
 void gbe::FileDialogue::Init()
 {
 	// Portable File Dialogs does not require manual system initialization.
@@ -46,6 +49,14 @@ std::string gbe::FileDialogue::GetFilePath(OpType optype, std::string extension)
 
 	if (!outPathStr.empty() && !extension.empty())
 	{
+		for (char &c : outPathStr) {
+			c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+		}
+
+		for (char &c : extension) {
+			c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+		}
+
 		if (outPathStr.ends_with(extension) == false)
 			return "";
 	}
