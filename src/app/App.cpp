@@ -17,6 +17,23 @@ namespace app
 
         if (!io.WantTextInput)
         {
+            if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+            {
+                if (io.KeyShift)
+                {
+                    edit_history.Redo(project);
+                }
+                else
+                {
+                    edit_history.Undo(project);
+                }
+            }
+
+            if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false))
+            {
+                edit_history.Redo(project);
+            }
+
             // Quick Save (Ctrl + S)
             if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false))
             {

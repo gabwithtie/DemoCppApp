@@ -6,12 +6,16 @@
 #include "AutoSerializer.hpp"
 #include "File/Parser.hpp"
 
+#include <cstddef>
+
 namespace gbe {
 
     template <typename T>
     class ObjectRef {
     public:
         ObjectRef() = default;
+
+        ObjectRef(std::nullptr_t) {}
 
         ObjectRef(T* instance) {
             Set(instance);
@@ -21,22 +25,18 @@ namespace gbe {
 
         // Sets or updates the referenced object
         void Set(T* instance) {
-            m_cachedPtr = instance;
             m_targetGuid = instance ? instance->GetGUID() : GUID::Empty();
         }
 
-        // Sets the target GUID and invalidates cached pointer for re-resolution
+        // Sets the target GUID for lazy resolution through the live scene registry
         void SetGUID(const GUID& guid) {
             m_targetGuid = guid;
-            m_cachedPtr = nullptr;
         }
 
-        // Lazy-resolves target pointer via SceneRegistry
+        // Resolve on every access so destroyed or replaced objects cannot leave a
+        // stale cached pointer behind.
         T* Get() const {
-            if (!m_cachedPtr && m_targetGuid != GUID::Empty()) {
-                m_cachedPtr = SceneRegistry::GetInstance().Resolve<T>(m_targetGuid);
-            }
-            return m_cachedPtr;
+            return SceneRegistry::GetInstance().Resolve<T>(m_targetGuid);
         }
 
         T* operator->() const { return Get(); }
@@ -50,7 +50,6 @@ namespace gbe {
 
     private:
         GUID m_targetGuid = GUID::Empty();
-        mutable T* m_cachedPtr = nullptr;
     };
 
 } // namespace gbe
@@ -65,7 +64,7 @@ namespace gbe {
 
         void Serialize(SerializedData& data) override {
             // Serialize the target object's GUID as a string
-            GUID targetGuid = this->m_target.GetTargetGUID();
+            GUID targetGuid = this->Get().GetTargetGUID();
             data.serialized_variables.insert_or_assign(this->m_id, Parser::ExportClassStr(targetGuid));
         }
 
@@ -74,11 +73,11 @@ namespace gbe {
             if (it != data.serialized_variables.end()) {
                 GUID restoredGuid = GUID::Empty();
                 Parser::PopulateClassStr(restoredGuid, it->second);
-                this->m_target.SetGUID(restoredGuid);
+                this->Get().SetGUID(restoredGuid);
             }
 
             if (this->m_on_init) {
-                this->m_on_init(this->m_target);
+                this->m_on_init(this->Get());
             }
         }
     };

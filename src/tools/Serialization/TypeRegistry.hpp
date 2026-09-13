@@ -150,4 +150,5 @@ namespace gbe {
     inline Type(gbe::SerializedData& data) : Base(data) {GBE_Init();} \
 	inline virtual std::string GetLabel() override {return NameGetter();} \
     protected:
+
 }

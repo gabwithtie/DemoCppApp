@@ -1,13 +1,14 @@
 #pragma once
 
+#include <functional>
+#include <string>
+#include <utility>
+
+#include "ISerializable.hpp"
 #include "SerializedData.hpp"
-#include "File/Parser.hpp"
 #include "PropertyDrawer.hpp"
 
 namespace gbe {
-
-    class ISerializable;
-
     struct IAutoSerializer {
 
         std::string m_id;
@@ -18,7 +19,6 @@ namespace gbe {
 
         // --- Type Erasure API for Editor ---
         virtual bool DrawInspector() = 0;
-
 
         virtual ~IAutoSerializer() = default;
         virtual void RemoveFromInspector(ISerializable* _owner) = 0;
@@ -33,7 +33,7 @@ namespace gbe {
         using InitCallback = std::function<void(T&)>;
 
     protected:
-        T& m_target;
+        T* m_target;
         ISerializable* m_owner;
         InitCallback m_on_init;
 
@@ -43,7 +43,7 @@ namespace gbe {
             std::string display_name,
             T& target,
             InitCallback on_init = nullptr)
-            : m_owner(owner), m_target(target), m_on_init(std::move(on_init))
+            : m_owner(owner), m_target(&target), m_on_init(std::move(on_init))
         {
             m_id = std::move(id);
             m_display_name = std::move(display_name);
@@ -53,9 +53,14 @@ namespace gbe {
             }
         }
 
+        // Enable move operations
+        AutoSerializerBase(AutoSerializerBase&&) = default;
+        AutoSerializerBase& operator=(AutoSerializerBase&&) = default;
+        
         // Strictly delete copy operations
         AutoSerializerBase(const AutoSerializerBase&) = delete;
         AutoSerializerBase& operator=(const AutoSerializerBase&) = delete;
+
 
         ~AutoSerializerBase() override {
             if (m_owner) {
@@ -67,17 +72,17 @@ namespace gbe {
             _owner->UnRegisterProperty(this);
         }
 
-        T& Get() { return m_target; }
-        const T& Get() const { return m_target; }
+        T& Get() { return *m_target; }
+        const T& Get() const { return *m_target; }
 
 
 
         // --- Static Template Dispatch for ImGui ---
         bool DrawInspector() override {
-            bool changed = PropertyDrawer<T>::Draw(m_display_name, m_target);
+            bool changed = PropertyDrawer<T>::Draw(m_display_name, this->Get());
 
             if (changed && m_on_init) {
-                m_on_init(m_target);
+                m_on_init(this->Get());
             }
             return changed;
         }

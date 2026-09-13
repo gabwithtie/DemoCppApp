@@ -4,7 +4,15 @@ set(CUR_TARGET_NAME gbe_app_${CUR_TARGET_SUBLIBNAME})
 
 set(${CUR_TARGET_NAME}_src
 	App.cpp
+	ProjectExporter.cpp
 	gui/ProjectPicker.cpp
+	gui/ActiveToolSettingsWindow.cpp
+	gui/IllustratorWindow.cpp
+	gui/LayerManagerWindow.cpp
+	gui/ToolRegistryWindow.cpp
+	gui/HotkeyWindow.cpp
+	gui/tools/PencilTool.cpp
+	gui/tools/PathDrawTool.cpp
 	gui/SampleWindow.cpp
 )
 
@@ -14,6 +22,7 @@ target_include_directories(${CUR_TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 
 target_link_libraries(${CUR_TARGET_NAME} PRIVATE imgui)
 target_include_directories(${CUR_TARGET_NAME} PRIVATE ${imgui_SOURCE_DIR})
+target_include_directories(${CUR_TARGET_NAME} PRIVATE ${stb_SOURCE_DIR})
 
 target_link_libraries(${CUR_TARGET_NAME} PUBLIC gbe::app::math)
 target_link_libraries(${CUR_TARGET_NAME} PUBLIC gbe::app::gui)

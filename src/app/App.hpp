@@ -1,6 +1,7 @@
 #pragma once
 
 #include "model/Project.hpp"
+#include "EditHistoryManager.hpp"
 
 
 #include "../gui/features/propertydrawers/PropertyDrawers.hpp"
@@ -46,6 +47,8 @@ public:
 
 public:
     Model::Project project;
+    EditHistoryManager edit_history{};
+    int selected_layer_index{0};
 
     std::string current_filepath;
 

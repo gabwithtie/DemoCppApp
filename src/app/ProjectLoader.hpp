@@ -46,6 +46,8 @@ public:
 
             App::GetInstance().DeserializeFromFile(path);
         }
+        App::GetInstance().edit_history.Clear();
+        App::GetInstance().selected_layer_index = 0;
         projectOpen = true;
     }
 
@@ -54,6 +56,8 @@ public:
         currentSceneFile.clear();
         currentProjectFile.clear();
         App::GetInstance().project = Model::Project{};
+        App::GetInstance().edit_history.Clear();
+        App::GetInstance().selected_layer_index = 0;
         projectOpen = true;
     }
 

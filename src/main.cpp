@@ -8,6 +8,13 @@
 #include "gui/MenuBarExtensionMain.hpp"
 
 #include "app/gui/ProjectPicker.hpp"
+#include "app/gui/ActiveToolSettingsWindow.hpp"
+#include "app/gui/IllustratorWindow.hpp"
+#include "app/gui/LayerManagerWindow.hpp"
+#include "app/gui/ToolRegistryWindow.hpp"
+#include "app/gui/tools/PencilTool.hpp"
+#include "app/gui/tools/PathDrawTool.hpp"
+#include "app/gui/HotkeyWindow.hpp"
 #include "app/gui/SampleWindow.hpp"
 
 #include <imgui.h>
@@ -26,19 +33,33 @@ int main(int argc, char** argv) {
     app::MenuBarExtensionMain menuBarExtensionMain;
 
     app::ProjectPicker projectPicker;
+    app::IllustratorWindow illustratorWindow;
+    app::ToolRegistryWindow toolRegistryWindow(illustratorWindow);
+    app::ActiveToolSettingsWindow activeToolSettingsWindow(illustratorWindow);
+    app::LayerManagerWindow layerManagerWindow;
+    app::HotkeyWindow hotkeyWindow;
     app::SampleWindow sampleWindow;
 
 
     // 4. Configure Layout Assignments via Designated Initializers
     app::GuiManager::WindowAssignmentOverride windowoverride = {
         .topLeft = {
-            &sampleWindow
+            &illustratorWindow
+        },
+        .topRght = {
+            &toolRegistryWindow,
+            &activeToolSettingsWindow,
+            &layerManagerWindow,
+            &hotkeyWindow
         },
         .bottomLeft = {
-            //&window
+            
         },
         .bottomRight = {
-            //&window
+            
+        },
+        .hiddens = {
+            
         },
         .startupWindow = &projectPicker
     };
@@ -57,7 +78,7 @@ int main(int argc, char** argv) {
         
         // Render ImGui dockspace and active windows
         guimanager.Draw();
-
+        hotkeyWindow.HandleHotkeys(illustratorWindow);
 
         window.CommitFrame();
     }
