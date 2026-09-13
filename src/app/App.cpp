@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <imgui.h>
 
-namespace gsr
+namespace app
 {
 
     App::App() = default;
@@ -22,7 +22,7 @@ namespace gsr
             {
                 if (!ProjectLoader::QuickSave())
                 {
-                    std::string outPath = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::SAVE, "gsrproj");
+                    std::string outPath = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::SAVE, "appproj");
                     if (!outPath.empty())
                     {
                         ProjectLoader::SaveProject(outPath);
@@ -48,4 +48,4 @@ namespace gsr
 
     }
 
-} // namespace gsr
+} // namespace app

@@ -81,32 +81,8 @@ FetchContent_Declare(glm
     UPDATE_COMMAND "" 
 )
 
-# --- TinySoundFont (tsf.h) ---
-set(TSF_DIR "${CMAKE_BINARY_DIR}/_deps/tinysoundfont")
-
-if(NOT EXISTS "${TSF_DIR}/tsf.h")
-    message(STATUS "Downloading tsf.h...")
-    file(DOWNLOAD
-        "https://raw.githubusercontent.com/schellingb/TinySoundFont/master/tsf.h"
-        "${TSF_DIR}/tsf.h"
-        STATUS download_status
-    )
-endif()
-
-if(NOT TARGET tinysoundfont)
-    add_library(tinysoundfont INTERFACE)
-    target_include_directories(tinysoundfont INTERFACE "${TSF_DIR}")
-endif()
-
-FetchContent_Declare(
-    miniaudio
-    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-    GIT_TAG        0.11.21 # Use the latest stable tag
-    UPDATE_COMMAND "" 
-)
-
 #==============POPULATE & MAKE AVAILABLE================#
-FetchContent_MakeAvailable(SDL2 glm glaze imgui nfd stb glew miniaudio)
+FetchContent_MakeAvailable(SDL2 glm glaze imgui nfd stb glew)
 
 #===================FURTHER SETUP==================#
 add_library(imgui STATIC
@@ -167,7 +143,6 @@ target_link_libraries(${PROJECT_NAME}
     libglew_static
     imgui
     glaze::glaze
-    tinysoundfont
 )
 
 #=========================# FINAL COPY COMMANDS #=========================#

@@ -22,9 +22,9 @@ winget settings --enable BypassCertificatePinningForMicrosoftStore
 echo.
 
 :: 1. Install Tools via Winget forcing the main 'winget' repository source
-echo [1/3] Installing LLVM (Clang Compiler)...
-winget install LLVM.LLVM --source winget --silent --accept-source-agreements --accept-package-agreements
-if %errorLevel% neq 0 echo [WARNING] LLVM install exited with code %errorLevel%
+echo [1/3] Installing MSYS2.MSYS2 (Compiler)...
+winget install -e --id MSYS2.MSYS2 --source winget --silent --accept-source-agreements --accept-package-agreements
+if %errorLevel% neq 0 echo [WARNING] MSYS2 install exited with code %errorLevel%
 echo.
 
 echo [2/3] Installing CMake...
@@ -54,15 +54,7 @@ echo ===================================================
 echo                Verification Test
 echo ===================================================
 
-where clang++ >nul 2>&1
-if %errorLevel% equ 0 (
-    for /f "delims=" %%A in ('clang++ --version') do (
-        echo [SUCCESS] Clang Installed: %%A
-        goto :check_cmake
-    )
-) else (
-    echo [FAIL] Clang compiler was not found in PATH.
-)
+
 
 :check_cmake
 where cmake >nul 2>&1

@@ -5,6 +5,7 @@ set(CUR_TARGET_NAME gbe_app_${CUR_TARGET_SUBLIBNAME})
 set(${CUR_TARGET_NAME}_src
 	App.cpp
 	gui/ProjectPicker.cpp
+	gui/SampleWindow.cpp
 )
 
 add_library(${CUR_TARGET_NAME} STATIC ${${CUR_TARGET_NAME}_src})

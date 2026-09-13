@@ -8,7 +8,7 @@
 #include "File/Parser.hpp"
 #include "App.hpp"
 
-namespace gsr {
+namespace app {
 
 class ProjectLoader {
     struct ProjectInfo {
@@ -78,4 +78,4 @@ public:
     }
 };
 
-} // namespace gsr
+} // namespace app

@@ -5,9 +5,10 @@
 #include "app/App.hpp"
 
 // Application GUI Extensions
-#include "gui/MenuBarExtension.hpp"
+#include "gui/MenuBarExtensionMain.hpp"
 
-#include "app/gui/ProjectPicker.h"
+#include "app/gui/ProjectPicker.hpp"
+#include "app/gui/SampleWindow.hpp"
 
 #include <imgui.h>
 
@@ -16,21 +17,22 @@ int main(int argc, char** argv) {
     app::Window window = app::Window("GabApp", 1280, 720);
 
     // 2. Initialize Core App Lifecycle & State
-    gsr::App app;
+    app::App app;
     if (!app.init()) {
         return -1;
     }
 
     // 3. Instantiate GUI Windows
-    gsr::MenuBarExtension menuBarExtension;
+    app::MenuBarExtensionMain menuBarExtensionMain;
 
-    gsr::ProjectPicker projectPicker;
+    app::ProjectPicker projectPicker;
+    app::SampleWindow sampleWindow;
 
 
     // 4. Configure Layout Assignments via Designated Initializers
     app::GuiManager::WindowAssignmentOverride windowoverride = {
         .topLeft = {
-            //&window
+            &sampleWindow
         },
         .bottomLeft = {
             //&window
@@ -42,7 +44,7 @@ int main(int argc, char** argv) {
     };
     app::GuiManager guimanager(windowoverride);
 
-    guimanager.GetMenuBar().AddMenu(&menuBarExtension);
+    guimanager.GetMenuBar().AddMenu(&menuBarExtensionMain);
 
     // 5. Main Execution Loop
     while (!window.GetShouldQuit()) {

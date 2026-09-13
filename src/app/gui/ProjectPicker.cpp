@@ -1,4 +1,4 @@
-#include "ProjectPicker.h"
+#include "ProjectPicker.hpp"
 
 #include "../ProjectLoader.hpp"
 #include "FileDialogue.hpp"
@@ -7,7 +7,7 @@
 #include <fstream>
 #include <imgui.h>
 
-namespace gsr {
+namespace app {
 
 ProjectPicker::ProjectPicker() {
     LoadRecentProjects();
@@ -55,7 +55,7 @@ void ProjectPicker::DrawSelf() {
     ImGui::Spacing();
 
     if (ImGui::Button("Open Project...")) {
-        const auto path = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::OPEN, "gsrproj");
+        const auto path = gbe::FileDialogue::GetFilePath(gbe::FileDialogue::OPEN, "appproj");
         if (!path.empty())
             OpenProject(path);
     }

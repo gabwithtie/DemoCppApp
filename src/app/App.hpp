@@ -11,7 +11,7 @@
 #include <memory>
 #include <vector>
 
-namespace gsr {
+namespace app {
 
 class App : public gbe::ISerializable {
 public:
@@ -53,4 +53,4 @@ private:
     inline static App* s_instance{nullptr};
 };
 
-} // namespace gsr
+} // namespace app
