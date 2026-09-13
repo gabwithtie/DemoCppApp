@@ -14,6 +14,8 @@ set(${CUR_TARGET_NAME}_src
 	gui/tools/PencilTool.cpp
 	gui/tools/PathDrawTool.cpp
 	gui/SampleWindow.cpp
+
+	gui/input/InputWindow.cpp
 )
 
 add_library(${CUR_TARGET_NAME} STATIC ${${CUR_TARGET_NAME}_src})
